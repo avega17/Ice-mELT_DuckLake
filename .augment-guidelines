@@ -1,0 +1,50 @@
+Core Technologies
+Storage
+    * local fs
+    * S3-compatible buckets
+    * Rasters
+        * Zarr data format
+        * Icechunk, tensor storage engine
+        * VirtualiZarr for virtual datasets
+Open File Formats for Data Lakehouse
+    * Parquet
+        * sources for Lakehouse tables
+        * exported raster virtual datasets
+    * COG and GeoTIFF for rasters
+        * source for Zarr and Icechunk stores
+Data Lakehouse Catalog and metadata handling
+    * Apache Iceberg, open table format 
+    * DuckLake, an open Catalog format that offers a pure SQL approach
+    * STAC for metadata and asset discovery
+    * H3 spatial indexing
+Data Sources
+    * open DOI datasets via datahugger
+    * STAC assets for satellite imagery 
+    * Overture Maps for global admin boundaries, building footprints, and land cover
+    * Irradiance data from Google’s Solar API and NREL’s National Solar Radiation Database
+Loading
+    * dlt for data loading and ingestion
+    * raw sources standardized to (Geo)Parquet
+Query
+    * Transactional: PostgreSQL
+        * Lakehouse Catalog
+        * pgstac for querying STAC collections
+        * pg_mooncake enables exporting and loading native pg tables as Iceberg tables
+        * cloud via Neon or Supabase free tier
+    * Analytical: DuckDB
+        * for local processing and MotherDuck for cloud-scaling
+Transport:
+    * Apache Arrow for in-memory, zero-copy data exchange
+Transform:
+    * dbt for Python + SQL model development, data lineage, testing, and documentation
+    * Ibis: Python dataframe API that compiles to multiple SQL backends
+    * ELT dataflow pipeline built in python using dagworks's Hamilton DAGs
+    * Arrays: 
+        * Xarray, a library for manipulating and  operating on labeled multi-dimensional arrays
+        * Tensorstore, a library for RW large ND-arrays
+Parallelization
+    * Local: Dask
+    * scale Dask to cloud via Coiled
+Data Products
+    * datacubes of existing STAC imagery with PV locations
+    * curated global PV dataset

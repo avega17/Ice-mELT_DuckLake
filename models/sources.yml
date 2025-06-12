@@ -1,0 +1,43 @@
+version: 2
+
+sources:
+  - name: eo_pv_complete
+    description: "Raw EO PV datasets loaded via dlt pipeline"
+    database: eo_pv_data
+    schema: eo_pv_complete  # Updated to match dlt dataset name
+
+    tables:
+      - name: pv_features
+        description: "Individual PV installation features from all DOI-sourced datasets"
+        columns:
+          - name: dataset_name
+            description: "Name of the source dataset (e.g., 'ind_pv_solar_farms_2022')"
+            tests:
+              - not_null
+
+          - name: source_file
+            description: "Original filename from the dataset"
+            tests:
+              - not_null
+
+          - name: geometry
+            description: "Geospatial geometry in WKT format (Point, Polygon, etc.)"
+            tests:
+              - not_null
+
+          # Note: Additional columns may exist from original datasets
+          # These will be preserved with their original names and can be
+          # accessed in staging models for dataset-specific processing
+
+        # Data quality tests for the source
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "count(*) > 0"
+              config:
+                severity: error
+
+          # Test that we have data from multiple datasets
+          - dbt_utils.expression_is_true:
+              expression: "count(distinct dataset_name) >= 3"
+              config:
+                severity: warn

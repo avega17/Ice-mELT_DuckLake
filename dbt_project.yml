@@ -1,0 +1,109 @@
+# dbt project configuration for EO PV data pipeline
+# This file will be used by `dlt dbt generate` to create initial models
+
+name: 'eo_pv_pipeline'
+version: '1.0.0'
+config-version: 2
+
+# This setting configures which "profile" dbt uses for this project.
+profile: 'eo_pv_pipeline'
+
+# These configurations specify where dbt should look for different types of files.
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# Model configurations
+models:
+  eo_pv_pipeline:
+    # Staging models - raw data with geopandas preprocessing (Python models)
+    staging:
+      +materialized: table
+      +schema: staging
+      # Use DuckDB-specific optimizations
+      +file_format: parquet
+      +compression: snappy
+
+    # Prepared models - business logic transformations and data preparation
+    prepared:
+      +materialized: table
+      +schema: prepared
+      +file_format: parquet
+      +compression: snappy
+
+      # Overture Maps models should be views only to minimize storage
+      prep_overture_countries:
+        +materialized: view
+      prep_country_h3_decomposition:
+        +materialized: view
+
+      # Large spatial models can use Iceberg for better performance
+      prep_pv_with_admin_boundaries:
+        +materialized: table
+        +file_format: iceberg
+        +partition_by:
+          - dataset_name
+
+    # Curated models - final analytical datasets
+    curated:
+      +materialized: table
+      +schema: curated
+      +file_format: parquet
+      +compression: snappy
+
+      # Summary models can be smaller tables
+      curated_pv_dataset_summary:
+        +materialized: table
+        +file_format: parquet
+
+# Seed configurations
+seeds:
+  eo_pv_pipeline:
+    +schema: seeds
+
+# Test configurations
+tests:
+  +store_failures: true
+  +schema: test_failures
+
+# Variables for the project
+vars:
+  # Date range for data processing
+  start_date: '2015-01-01'
+  end_date: '2024-12-31'
+
+  # Coordinate reference systems
+  default_crs: 'EPSG:4326'  # WGS84
+
+  # Data quality thresholds
+  min_geometry_area: 10  # minimum area in square meters
+  max_geometry_area: 1000000  # maximum area in square meters
+
+  # H3 spatial indexing settings
+  h3_resolution: 8  # ~0.7 km² hexagons for PV installations
+  h3_country_resolution: 4  # ~1,770 km² hexagons for country decomposition
+
+  # Spatial processing settings
+  overlap_threshold: 0.75  # For duplicate detection
+  buffer_distance_m: 100   # Buffer for spatial joins
+
+  # DuckDB-specific settings
+  use_native_geometry: true  # Use DuckDB spatial extension instead of WKT
+  enable_spatial_index: true # Enable spatial indexing for performance
+
+# DuckDB-specific configurations
+on-run-start:
+  - "INSTALL spatial"
+  - "LOAD spatial"
+  - "INSTALL h3"
+  - "LOAD h3"
+  - "INSTALL arrow"
+  - "LOAD arrow"

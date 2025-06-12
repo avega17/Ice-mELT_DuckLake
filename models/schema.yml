@@ -1,0 +1,159 @@
+version: 2
+
+models:
+  # Staging Layer - Python model with geopandas preprocessing
+  - name: stg_doi_datasets
+    description: "Staging table of processed PV installation geometries from DOI datasets"
+    columns:
+      - name: dataset_name
+        description: "Unique identifier for the dataset"
+        tests:
+          - not_null
+      - name: doi
+        description: "Digital Object Identifier or URL for the dataset"
+        tests:
+          - not_null
+      - name: repository_type
+        description: "Type of repository (figshare, zenodo, github, sciencebase)"
+        tests:
+          - accepted_values:
+              values: ['figshare', 'zenodo', 'github', 'sciencebase']
+      - name: geometry_wkt
+        description: "Geometry in Well-Known Text format"
+        tests:
+          - not_null
+      - name: area_m2
+        description: "Area of the PV installation in square meters"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: centroid_lon
+        description: "Longitude of the geometry centroid"
+      - name: centroid_lat
+        description: "Latitude of the geometry centroid"
+
+  # Prepared Layer - Spatio-temporal context augmentation
+  - name: prep_pv_datasets_unified
+    description: "Prepared table of PV installations with H3 indexing and spatial context"
+    columns:
+      - name: dataset_name
+        description: "Unique identifier for the dataset"
+        tests:
+          - not_null
+      - name: installation_id
+        description: "Unique identifier for the PV installation"
+      - name: geometry_wkt
+        description: "Geometry in Well-Known Text format"
+        tests:
+          - not_null
+      - name: area_m2
+        description: "Area of the PV installation in square meters"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: h3_index_res10
+        description: "H3 index at resolution 10 (~15m hexagons)"
+      - name: h3_index_res7
+        description: "H3 index at resolution 7 (~1.2km hexagons)"
+      - name: h3_index_res5
+        description: "H3 index at resolution 5 (~8.5km hexagons)"
+      - name: hilbert_order
+        description: "Hilbert spatial ordering for efficient querying"
+      - name: admin_country
+        description: "Administrative country (placeholder - populated in downstream model)"
+      - name: admin_region
+        description: "Administrative region (placeholder - populated in downstream model)"
+      - name: admin_locality
+        description: "Administrative locality (placeholder - populated in downstream model)"
+
+  # Prepared Layer - PV installations with admin boundaries
+  - name: prep_pv_with_admin_boundaries
+    description: "PV installations with administrative boundaries assigned via efficient H3-based spatial join"
+    columns:
+      - name: installation_id
+        description: "Unique identifier for the PV installation"
+      - name: h3_index_res5
+        description: "H3 index at resolution 5 used for efficient spatial joins"
+        tests:
+          - not_null
+      - name: division_id
+        description: "Overture Maps division ID for the country"
+      - name: admin_country
+        description: "ISO country code from Overture Maps"
+      - name: admin_country_name
+        description: "Country name from Overture Maps"
+      - name: admin_assigned_at
+        description: "Timestamp when admin boundaries were assigned"
+        tests:
+          - not_null
+
+  # Prepared Layer - Overture Maps country geometries
+  - name: prep_overture_countries
+    description: "Country geometries from Overture Maps with PV installation statistics"
+    columns:
+      - name: division_id
+        description: "Overture Maps division ID"
+        tests:
+          - not_null
+          - unique
+      - name: country_iso
+        description: "ISO country code"
+        tests:
+          - not_null
+      - name: division_name
+        description: "Country name from Overture Maps"
+      - name: country_pv_count
+        description: "Number of PV installations in the country"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+
+  # Prepared Layer - Country H3 decomposition
+  - name: prep_country_h3_decomposition
+    description: "Country geometries decomposed into H3 grid cells"
+    columns:
+      - name: division_id
+        description: "Overture Maps division ID"
+        tests:
+          - not_null
+      - name: country_iso
+        description: "ISO country code"
+        tests:
+          - not_null
+      - name: h3_cell
+        description: "H3 cell ID at resolution 5"
+        tests:
+          - not_null
+      - name: h3_cell_geometry_wkt
+        description: "H3 cell boundary as WKT"
+        tests:
+          - not_null
+      - name: h3_resolution
+        description: "H3 resolution used (should be 5)"
+        tests:
+          - accepted_values:
+              values: [5]
+      - name: pv_adoption_category
+        description: "Country PV adoption category"
+        tests:
+          - accepted_values:
+              values: ['No PV', 'Low PV', 'Medium PV', 'High PV', 'Very High PV']
+
+  # Curated Layer - Draft models for future development
+  - name: curated_pv_dataset_summary_draft
+    description: "DRAFT: Basic summary of PV datasets - to be refined later"
+    columns:
+      - name: dataset_name
+        description: "Unique identifier for the dataset"
+        tests:
+          - not_null
+      - name: installation_count
+        description: "Number of PV installations in the dataset"
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: status
+        description: "Model development status"
+        tests:
+          - accepted_values:
+              values: ['DRAFT - TO BE REFINED']
