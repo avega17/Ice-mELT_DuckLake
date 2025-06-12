@@ -188,6 +188,20 @@ References:
 - **Minimal storage footprint**: Metadata-only approach for massive datasets
 - **Immediate availability**: No waiting for large-scale data conversions
 
+**Full-Circle Integration**: VirtualiZarr enables a complete workflow integration:
+References:
+1. [Store virtual datasets as Kerchunk Parquet references](https://projectpythia.org/kerchunk-cookbook/notebooks/advanced/Parquet_Reference_Storage.html)
+2. [Writing to Kerchunk’s format and reading data via fsspec](https://virtualizarr.readthedocs.io/en/latest/usage.html#writing-to-kerchunk-s-format-and-reading-data-via-fsspec)
+
+1. **pgstac queries** gather relevant STAC items for ROI within H3 hex cells
+2. **VirtualiZarr creates** virtual Zarr stores referencing STAC imagery assets
+3. **Kerchunk references** can be exported as Parquet files for the virtual stores
+4. **DuckLake manages** these Parquet-stored references alongside vector PV data
+5. **Result**: Unified SQL interface for both vector labels and raster imagery references
+
+This approach combines the best of all worlds: STAC discovery, Zarr array processing, Parquet efficiency, and DuckLake's SQL-based metadata management - all without duplicating the underlying satellite imagery.
+
+
 ### Real-World Implementation Strategy
 
 **Phase 1: STAC Catalog Foundation**
@@ -389,8 +403,8 @@ For most small-medium research teams, cloud advantages can be simplified to **tw
 #### 2. Ephemeral, Highly Parallelized Compute (EC2-Style VMs)
 
 **What it provides**:
-- **Massive parallelism**: Spin up 100s of machines in minutes
-- **Diverse hardware**: CPUs, GPUs, high-memory, ARM processors on-demand
+- **Massive parallelism**: Spin up 100s of machines in minutes that can leverage reading chunked ND-arrays from distributed object storage
+- **Diverse hardware**: CPUs, GPUs, high-memory, cheaper ARM processors on-demand
 - **Geographic distribution**: Process data close to where it's stored
 - **Pay-per-use**: $0.02/hour for powerful machines, shut down immediately after use
 
@@ -450,7 +464,7 @@ This means we can simplify our fundamental cloud scaling architecture to object 
 **Key Benefits**:
 - **Frictionless development**: Same tools locally and in cloud
 - **Abundant cheap computing**: Process massive datasets for dollars
-- **Infrastructure for everyone**: No dedicated IT team required
+- **Infrastructure for everyone**: **No dedicated IT team or Cloud Engineer required**
 - **Composable architecture**: Integrate with existing research tools
 
 ---
