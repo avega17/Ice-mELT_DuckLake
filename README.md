@@ -5,11 +5,23 @@ A modern data lakehouse pipeline for Earth Observation (EO) photovoltaic (PV) se
 ## 🎯 Project Overview
 
 This project implements a comprehensive data pipeline for processing and analyzing global photovoltaic installation datasets, combining:
-- **Vector data**: PV installation polygons from multiple DOI datasets
-- **Raster data**: Satellite imagery and irradiance data via STAC catalogs
+- **Vector data**: PV installation polygons and point coordinates from multiple DOI open-access datasets
+- **Raster data**: Satellite multispectral imagery and irradiance data via public STAC catalogs
 - **Analytical processing**: Spatial indexing, administrative boundary enrichment, and energy forecasting
 
 ## 🏗️ Architecture
+
+<div align="center">
+<img src="figures/ice-mELT_ducklake_draft.png" alt="ice-mELT DuckLake Architecture" width="40%">
+</div>
+
+### Project Name Explained
+
+**ice-mELT DuckLake** reflects our modern data architecture approach:
+
+- **Ice**: Leverages **Iceberg** open table format and **Icechunk** tensor storage engine
+- **mELT**: **Modern** data stack with **Extract-Load-Transform** pipelines ([dbt methodology](https://www.getdbt.com/blog/extract-load-transform))
+- **DuckLake**: Data lakehouse architecture using the new **DuckLake** table format for SQL-based metadata management
 
 ### Core Technologies
 
