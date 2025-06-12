@@ -137,10 +137,12 @@ References:
 - **Dimension-aware operations**: Reductions, aggregations, and transformations respect data structure
 - **Memory efficiency**: Load only required spatial/temporal slices
 
+**Xarray to the Rescue**: Xarray is a Python library that extends NumPy's array data structures to labeled dimensions and coordinates. This enables efficient access to multi-dimensional data, avoiding the "flattening problem" and its associated performance impacts.
+
 <div align="center">
     <figure>
-        <img src="figures/zarr_store_diagram.png" alt="zarr-store-layout" width="50%">
-        <figcaption align = "center"> Metadata and raw binary data for a single Zarr store. </figcaption>
+        <img src="figures/xarray_nd_explained.png" alt="xarray-dim-labels-layout" width="50%">
+        <figcaption align = "center"> Xarray's labeled dimensions and coordinates enable efficient access to multi-dimensional data. </figcaption>
     </figure>
 </div>
 
@@ -174,6 +176,13 @@ References:
 - **Hierarchical organization**: Groups and arrays with rich metadata
 - **Compression and filtering**: Optimized storage and transfer
 
+<div align="center">
+    <figure>
+        <img src="figures/zarr_store_diagram.png" alt="zarr-store-layout" width="50%">
+        <figcaption align = "center"> Metadata and raw binary data for a single Zarr store. </figcaption>
+    </figure>
+</div>
+
 ### Virtual Datasets: Maximum Efficiency, Minimum Duplication
 
 **The Problem**: Traditional approaches require copying and converting massive satellite archives, leading to:
@@ -198,28 +207,11 @@ References:
 4. **DuckLake manages** these Parquet-stored references alongside vector PV data
 5. **Result**: Unified SQL interface for both vector labels and raster imagery references
 
-This approach combines the best of all worlds: STAC discovery, Zarr array processing, Parquet efficiency, and DuckLake's SQL-based metadata management - **all without duplicating the underlying satellite imagery**.
+This approach combines the best of all worlds: STAC discovery, Zarr array processing, Parquet efficiency, and DuckLake's SQL-based metadata management - all without duplicating the underlying satellite imagery.
 
 References:
 1. [Store virtual datasets as Kerchunk Parquet references](https://projectpythia.org/kerchunk-cookbook/notebooks/advanced/Parquet_Reference_Storage.html)
 2. [Writing to Kerchunk’s format and reading data via fsspec](https://virtualizarr.readthedocs.io/en/latest/usage.html#writing-to-kerchunk-s-format-and-reading-data-via-fsspec)
-
-### Real-World Implementation Strategy
-
-**Phase 1: STAC Catalog Foundation**
-- **Index existing PV datasets** in STAC collections
-- **Standardize metadata** across different DOI sources
-- **Enable spatial/temporal search** for PV installations
-
-**Phase 2: Virtual Zarr Integration**
-- **Create virtual Zarr stores** referencing STAC imagery assets
-- **Align PV labels with satellite imagery** using H3 spatial indexing
-- **Enable array-based analysis** without data duplication
-
-**Phase 3: Hybrid Data Products**
-- **Combine vector PV data** (in DuckLake) with **raster imagery** (via VirtualiZarr)
-- **Generate analysis-ready datacubes** for specific regions/timeframes
-- **Support both interactive analysis** and **batch processing** workflows
 
 <div align="center">
     <figure>
@@ -227,22 +219,6 @@ References:
         <figcaption align = "center"> Example of STAC collection of unaligned satellite imagery with each STAC item pointing to a Zarr store. </figcaption>
     </figure>
 </div>
-
-### Industry Adoption and Future-Proofing
-
-**ESA's Zarr Commitment**: The European Space Agency is incrementally [moving the Sentinel satellite archive to Zarr](https://zarr.eopf.copernicus.eu), signaling that "the future of planetary-scale data is chunked, cloud-optimized, and open."
-
-**Emerging Standards**:
-- **GeoZarr specification**: Standardizing geospatial metadata in Zarr
-- **Zarr v3 with sharding**: Reducing file proliferation while maintaining performance
-- **Icechunk integration**: Adding transactional consistency to Zarr workflows
-- [OGC GeoDataCube Future Standard](https://www.ogc.org/announcement/ogc-forms-new-geodatacube-standards-working-group/)
-
-**Why This Matters for Research**:
-- **Future compatibility**: Align with emerging industry standards
-- **Reduced vendor lock-in**: Open formats enable tool flexibility
-- **Scalable workflows**: Start local, scale to cloud seamlessly
-- **Collaborative research**: Shared standards enable data sharing
 
 ## DuckLake: SQL as Lakehouse Metadata
 
@@ -262,13 +238,6 @@ While Apache Iceberg pioneered open table formats, it has [practical limitations
 - **Write amplification**: Single-row updates create multiple metadata files
 - **Compaction overhead**: Requires separate Spark jobs for maintenance
 - **Limited real-time capabilities**: Optimized for batch, not streaming
-
-<div align="center">
-    <figure>
-        <img src="figures/iceberg_issues.jpeg" alt="iceberg_issues" width="33%">
-        <figcaption align = "center"> Sample of remaining issues in Iceberg despite gaining widespread adoption </figcaption>
-    </figure> 
-</div>
 
 ### DuckLake's SQL-First Approach
 
@@ -312,9 +281,9 @@ Most cloud setups today suffer from excessive layering and complexity:
 
 > *"Today many platforms run frameworks on frameworks on frameworks... Every layer promises to hide abstractions, but delivers to you a new abstraction to learn instead."*
 
-**Common Cloud Stack Complexity**:
-- **Kubernetes** → **Docker** → **Container Registry** → **Service Mesh** → **Your Code**
-- **Data Platform** → **Workflow Orchestrator** → **Cluster Manager** → **Your Analysis**
+**Common Complex Cloud Stacks**:
+- *Kubernetes* → *Docker* → *Container Registry* → *Service Mesh* → *Your Code*
+- *Data Platform* → *Workflow Orchestrator* → *Cluster Manager* → *Your Analysis*
 
 **Problems with Layered Abstractions**:
 - **Leaky abstractions**: You still need to debug through all layers when things break
@@ -450,20 +419,30 @@ As highlighted in [ML4Devs analysis](https://www.ml4devs.com/en/articles/who-car
 - **Clear provenance**: Track data lineage and processing steps
 - **Purposeful collection**: Collect data to answer specific research questions
 
+## Future-Proofing Strategy
+
+### Industry Adoption and Future-Proofing
+
+**ESA's Zarr Commitment**: The European Space Agency is [incrementally moving the Sentinel satellite archive to Zarr](https://zarr.eopf.copernicus.eu/), signaling that "the future of planetary-scale data is chunked, cloud-optimized, and open."
+
+**Emerging Standards**:
+- **GeoZarr specification**: Standardizing geospatial metadata in Zarr
+- **Zarr v3 with sharding**: Reducing file proliferation while maintaining performance
+- **Icechunk integration**: Adding transactional consistency to Zarr workflows
+- [OGC is working on a GeoDataCube Standard](https://www.ogc.org/announcement/ogc-forms-new-geodatacube-standards-working-group/)
+
+**Why This Matters for Research**:
+- **Future compatibility**: Align with emerging industry standards
+- **Reduced vendor lock-in**: Open formats enable tool flexibility
+- **Scalable workflows**: Start local, scale to cloud seamlessly
+- **Collaborative research**: Shared standards enable data sharing
+
 ### Modern Tool Integration
 
 **DataOps Principles**:
 - **Version control**: Git-based workflows for data and code
 - **Automated testing**: Data quality checks and pipeline validation
 - **Collaborative development**: Shared environments and reproducible results
-
-## Future-Proofing Strategy
-
-### Technology Evolution Path
-
-**Current State**: Local DuckDB + dbt development  
-**Near-term**: MotherDuck + Neon cloud integration  
-**Long-term**: Full lakehouse with Iceberg + STAC catalogs
 
 ### Avoiding Complexity Traps
 
@@ -476,3 +455,26 @@ As highlighted in [ML4Devs analysis](https://www.ml4devs.com/en/articles/who-car
 - **Single-node first**: Leverage modern hardware capabilities
 - **Cloud when needed**: Scale up only when local processing insufficient
 - **Open standards**: Maintain flexibility and avoid vendor lock-in
+
+### Technology Evolution Path
+
+**Current State**: Local DuckDB + dbt development  
+**Near-term**: MotherDuck + Neon cloud integration  
+**Long-term**: Full lakehouse with Iceberg + STAC catalogs
+
+### Real-World Implementation Strategy
+
+**Phase 1: STAC Catalog Foundation**
+- **Index existing PV datasets** in STAC collections
+- **Standardize metadata** across different DOI sources
+- **Enable spatial/temporal search** for PV installations
+
+**Phase 2: Virtual Zarr Integration**
+- **Create virtual Zarr stores** referencing STAC imagery assets
+- **Align PV labels with satellite imagery** using H3 spatial indexing
+- **Enable array-based analysis** without data duplication
+
+**Phase 3: Hybrid Data Products**
+- **Combine vector PV data** (in DuckLake) with **raster imagery** (via VirtualiZarr)
+- **Generate analysis-ready datacubes** for specific regions/timeframes
+- **Support both interactive analysis** and **batch processing** workflows
