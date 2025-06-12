@@ -30,6 +30,8 @@ Research labs and small-medium companies primarily deal with **"medium data"** -
 - Benefit more from smart processing than distributed computing
 - Require sophisticated analysis, not just storage and retrieval
 - Most data sits stale and unused, not actively queried
+  
+**Key Insight**: *"Big Data is when the cost of keeping data around is less than the cost of figuring out what to throw away"* - most organizations are data hoarders, not data giants.
 
 <div align="center">
     <figure>
@@ -37,8 +39,6 @@ Research labs and small-medium companies primarily deal with **"medium data"** -
         <figcaption align = "center"> The reality of data usage in most organizations. </figcaption>
     </figure>
 </div>
-
-**Key Insight**: *"Big Data is when the cost of keeping data around is less than the cost of figuring out what to throw away"* - most organizations are data hoarders, not data giants.
 
 ## Single-Node Computing Renaissance
 
