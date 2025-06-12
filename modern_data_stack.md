@@ -26,7 +26,7 @@ The era of Big Data hype (2010-2020) promised that massive scale was the solutio
 ### The Medium Data Reality
 
 Research labs and small-medium companies primarily deal with **"medium data"** - datasets that:
-- Fit comfortably on modern single-node systems (64+ cores, 256GB+ RAM per node is not particularly expensive)
+- Fit comfortably on modern single-node systems (e.g. 64+ cores, 256GB+ RAM in a single node)
 - Benefit more from smart processing than distributed computing
 - Require sophisticated analysis, not just storage and retrieval
 - Most data sits stale and unused, not actively queried
