@@ -1,5 +1,7 @@
 # Modern Data Stack Philosophy: Beyond the Big Data Myth
 
+*This philosophy guides the ice-mELT DuckLake project: leveraging modern tools to build sophisticated geospatial analysis capabilities without the complexity and cost traditionally associated with "Big Data" infrastructure.*
+
 ## The "Big Data is Dead" Perspective
 
 References:
@@ -189,9 +191,6 @@ References:
 - **Immediate availability**: No waiting for large-scale data conversions
 
 **Full-Circle Integration**: VirtualiZarr enables a complete workflow integration:
-References:
-1. [Store virtual datasets as Kerchunk Parquet references](https://projectpythia.org/kerchunk-cookbook/notebooks/advanced/Parquet_Reference_Storage.html)
-2. [Writing to Kerchunk’s format and reading data via fsspec](https://virtualizarr.readthedocs.io/en/latest/usage.html#writing-to-kerchunk-s-format-and-reading-data-via-fsspec)
 
 1. **pgstac queries** gather relevant STAC items for ROI within H3 hex cells
 2. **VirtualiZarr creates** virtual Zarr stores referencing STAC imagery assets
@@ -199,8 +198,11 @@ References:
 4. **DuckLake manages** these Parquet-stored references alongside vector PV data
 5. **Result**: Unified SQL interface for both vector labels and raster imagery references
 
-This approach combines the best of all worlds: STAC discovery, Zarr array processing, Parquet efficiency, and DuckLake's SQL-based metadata management - all without duplicating the underlying satellite imagery.
+This approach combines the best of all worlds: STAC discovery, Zarr array processing, Parquet efficiency, and DuckLake's SQL-based metadata management - **all without duplicating the underlying satellite imagery**.
 
+References:
+1. [Store virtual datasets as Kerchunk Parquet references](https://projectpythia.org/kerchunk-cookbook/notebooks/advanced/Parquet_Reference_Storage.html)
+2. [Writing to Kerchunk’s format and reading data via fsspec](https://virtualizarr.readthedocs.io/en/latest/usage.html#writing-to-kerchunk-s-format-and-reading-data-via-fsspec)
 
 ### Real-World Implementation Strategy
 
@@ -228,12 +230,13 @@ This approach combines the best of all worlds: STAC discovery, Zarr array proces
 
 ### Industry Adoption and Future-Proofing
 
-**ESA's Zarr Commitment**: The European Space Agency is moving the entire Sentinel satellite archive to Zarr, signaling that "the future of planetary-scale data is chunked, cloud-optimized, and open."
+**ESA's Zarr Commitment**: The European Space Agency is incrementally [moving the Sentinel satellite archive to Zarr](https://zarr.eopf.copernicus.eu), signaling that "the future of planetary-scale data is chunked, cloud-optimized, and open."
 
 **Emerging Standards**:
 - **GeoZarr specification**: Standardizing geospatial metadata in Zarr
 - **Zarr v3 with sharding**: Reducing file proliferation while maintaining performance
 - **Icechunk integration**: Adding transactional consistency to Zarr workflows
+- [OGC GeoDataCube Future Standard](https://www.ogc.org/announcement/ogc-forms-new-geodatacube-standards-working-group/)
 
 **Why This Matters for Research**:
 - **Future compatibility**: Align with emerging industry standards
@@ -260,6 +263,13 @@ While Apache Iceberg pioneered open table formats, it has [practical limitations
 - **Compaction overhead**: Requires separate Spark jobs for maintenance
 - **Limited real-time capabilities**: Optimized for batch, not streaming
 
+<div align="center">
+    <figure>
+        <img src="figures/iceberg_issues.jpeg" alt="iceberg_issues" width="33%">
+        <figcaption align = "center"> Sample of remaining issues in Iceberg despite gaining widespread adoption </figcaption>
+    </figure> 
+</div>
+
 ### DuckLake's SQL-First Approach
 
 DuckLake addresses these limitations by storing metadata in a transactional SQL database rather than as "many small files" in object storage. This enables single-query metadata access, reliable ACID transactions, and seamless integration with existing SQL tools. You can learn more in their [concise manifesto](https://ducklake.select/manifesto/). 
@@ -281,7 +291,7 @@ Iceberg and Delta Lake were designed to avoid databases entirely, encoding all m
 <div align="center">
 <figure>
 <img src="figures/ducklake-architecture.png" alt="ducklake-architecture" width="50%">
-<figcaption align = "center"> Iceberg's metadata architecture requires many small files and HTTP requests for even simple queries. </figcaption>
+<figcaption align = "center"> DuckLake's architecture leverages a SQL database for metadata management and blob storage for data files. </figcaption>
 </figure>
 </div>
 
@@ -291,76 +301,6 @@ Iceberg and Delta Lake were designed to avoid databases entirely, encoding all m
 - **Referential consistency** prevents metadata corruption (no duplicate snapshot IDs)
 - **Advanced database features** like views, nested types, transactional schema changes
 - **Single query access** vs. multiple HTTP requests to blob storage
-
-## Research Lab and SME Advantages
-
-### Collaborative Research Benefits
-
-**Multi-user Access**:
-- **PostgreSQL metadata**: Reliable concurrent access for research teams
-- **Shared data catalogs**: Common view of datasets across projects
-- **Version control**: Track data lineage and experimental iterations
-
-### Hybrid Deployment Flexibility
-
-**Local Development**:
-- **DuckDB**: Fast local analysis and prototyping
-- **Local filesystem**: Immediate data access during development
-
-**Cloud Scaling**:
-- **MotherDuck**: Seamless scaling for larger computations
-- **R2 object storage**: Cost-effective data sharing
-- **Neon PostgreSQL**: Managed metadata without infrastructure overhead
-
-### Cost-Conscious Innovation
-
-**Research Economics**:
-- **Start free**: Develop within free tier limits
-- **Scale gradually**: Pay only when exceeding research-scale requirements
-- **Avoid vendor lock-in**: Open formats enable tool flexibility
-
-## Quality Over Quantity Philosophy
-
-### Data Governance for Research
-
-As highlighted in [ML4Devs analysis](https://www.ml4devs.com/en/articles/who-cares-if-big-data-is-dead/):
-
-**Real Problems**:
-- **Data quality** over data quantity
-- **Data literacy** within organizations  
-- **Clear motives** for data collection and analysis
-
-**Research Best Practices**:
-- **Curated datasets**: Focus on validated, high-quality sources
-- **Clear provenance**: Track data lineage and processing steps
-- **Purposeful collection**: Collect data to answer specific research questions
-
-### Modern Tool Integration
-
-**DataOps Principles**:
-- **Version control**: Git-based workflows for data and code
-- **Automated testing**: Data quality checks and pipeline validation
-- **Collaborative development**: Shared environments and reproducible results
-
-## Future-Proofing Strategy
-
-### Technology Evolution Path
-
-**Current State**: Local DuckDB + dbt development  
-**Near-term**: MotherDuck + Neon cloud integration  
-**Long-term**: Full lakehouse with Iceberg + STAC catalogs
-
-### Avoiding Complexity Traps
-
-**Lessons from Big Data Era**:
-- **Start simple**: Use appropriate tools for actual data sizes
-- **Avoid premature optimization**: Don't build for scale you don't have
-- **Focus on value**: Prioritize insights over infrastructure complexity
-
-**Modern Approach**:
-- **Single-node first**: Leverage modern hardware capabilities
-- **Cloud when needed**: Scale up only when local processing insufficient
-- **Open standards**: Maintain flexibility and avoid vendor lock-in
 
 ## Simplifying Cloud Complexity: The Raw Architecture Advantage
 
@@ -467,6 +407,72 @@ This means we can simplify our fundamental cloud scaling architecture to object 
 - **Infrastructure for everyone**: **No dedicated IT team or Cloud Engineer required**
 - **Composable architecture**: Integrate with existing research tools
 
----
+## Research Lab and SME Advantages
 
-*This philosophy guides the ice-mELT DuckLake project: leveraging modern tools to build sophisticated geospatial analysis capabilities without the complexity and cost traditionally associated with "Big Data" infrastructure.*
+### Collaborative Research Benefits
+
+**Multi-user Access**:
+- **PostgreSQL metadata**: Reliable concurrent access for research teams
+- **Shared data catalogs**: Common view of datasets across projects
+- **Version control**: Track data lineage and experimental iterations
+
+### Hybrid Deployment Flexibility
+
+**Local Development**:
+- **DuckDB**: Fast local analysis and prototyping
+- **Local filesystem**: Immediate data access during development
+
+**Cloud Scaling**:
+- **MotherDuck**: Seamless scaling for larger computations
+- **R2 object storage**: Cost-effective data sharing
+- **Neon PostgreSQL**: Managed metadata without infrastructure overhead
+
+### Cost-Conscious Innovation
+
+**Research Economics**:
+- **Start free**: Develop within free tier limits
+- **Scale gradually**: Pay only when exceeding research-scale requirements
+- **Avoid vendor lock-in**: Open formats enable tool flexibility
+
+## Quality Over Quantity Philosophy
+
+### Data Governance for Research
+
+As highlighted in [ML4Devs analysis](https://www.ml4devs.com/en/articles/who-cares-if-big-data-is-dead/):
+
+**Real Problems**:
+- **Data quality** over data quantity
+- **Data literacy** within organizations  
+- **Clear motives** for data collection and analysis
+
+**Research Best Practices**:
+- **Curated datasets**: Focus on validated, high-quality sources
+- **Clear provenance**: Track data lineage and processing steps
+- **Purposeful collection**: Collect data to answer specific research questions
+
+### Modern Tool Integration
+
+**DataOps Principles**:
+- **Version control**: Git-based workflows for data and code
+- **Automated testing**: Data quality checks and pipeline validation
+- **Collaborative development**: Shared environments and reproducible results
+
+## Future-Proofing Strategy
+
+### Technology Evolution Path
+
+**Current State**: Local DuckDB + dbt development  
+**Near-term**: MotherDuck + Neon cloud integration  
+**Long-term**: Full lakehouse with Iceberg + STAC catalogs
+
+### Avoiding Complexity Traps
+
+**Lessons from Big Data Era**:
+- **Start simple**: Use appropriate tools for actual data sizes
+- **Avoid premature optimization**: Don't build for scale you don't have
+- **Focus on value**: Prioritize insights over infrastructure complexity
+
+**Modern Approach**:
+- **Single-node first**: Leverage modern hardware capabilities
+- **Cloud when needed**: Scale up only when local processing insufficient
+- **Open standards**: Maintain flexibility and avoid vendor lock-in
