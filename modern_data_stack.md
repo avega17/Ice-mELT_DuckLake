@@ -89,6 +89,57 @@ Following [Tobias Müller's analysis](https://tobilg.com/the-age-of-10-dollar-a-
 
 **Result**: Process hundreds of GB of imagery while using only a few GB's of actual object storage.
 
+## DuckLake: SQL as Lakehouse Metadata
+
+### The Fundamental Problem with Existing Formats:
+
+Iceberg and Delta Lake were designed to avoid databases entirely, encoding all metadata into "a maze of JSON and Avro files" on blob storage. However, they hit a critical limitation: as soon as you need something as ambitious as a second table or versioning, you realize **finding the latest table version is tricky in blob stores** with inconsistent guarantees. The solution? Adding a catalog service backed by... a database.
+
+**The Irony**: After going to great lengths to avoid databases, both formats ended up requiring one anyway for consistency. Yet they never revisited their core design to leverage this database effectively.
+
+**Addressing Iceberg's Limitations**:
+
+While Apache Iceberg pioneered open table formats, it has [practical limitations](https://quesma.com/blog-detail/apache-iceberg-practical-limitations-2025):
+
+<div align="center">
+<figure>
+<img src="figures/iceberg-catalog-architecture.png" alt="iceberg-catalog-architecture" width="50%">
+<figcaption align = "center"> Iceberg's metadata architecture requires many small files and HTTP requests for even simple queries. </figcaption>
+</figure>
+</div>
+
+**Iceberg Challenges**:
+- **Metadata complexity**: Many small files requiring multiple HTTP requests
+- **Write amplification**: Single-row updates create multiple metadata files
+- **Compaction overhead**: Requires separate Spark jobs for maintenance
+- **Limited real-time capabilities**: Optimized for batch, not streaming
+
+### DuckLake's SQL-First Approach
+
+DuckLake addresses these limitations by storing metadata in a transactional SQL database rather than as "many small files" in object storage. This enables single-query metadata access, reliable ACID transactions, and seamless integration with existing SQL tools. You can learn more in their [concise manifesto](https://ducklake.select/manifesto/). 
+
+**DuckLake's Insight**:
+
+> *"Once a database has entered the Lakehouse stack anyway, it makes an insane amount of sense to also use it for managing the rest of the table metadata! We can still take advantage of the 'endless' capacity and 'infinite' scalability of blob stores for storing the actual table data in open formats like Parquet, but we can much more efficiently and effectively manage the metadata needed to support changes in a database!"*
+
+**Core Design Principles**:
+1. **Store data files** in open formats on blob storage (scalability, no lock-in)
+2. **Manage metadata** in a SQL database (efficiency, consistency, transactions)
+
+<div align="center">
+<figure>
+<img src="figures/ducklake-architecture.png" alt="ducklake-architecture" width="50%">
+<figcaption align = "center"> DuckLake's architecture leverages a SQL database for metadata management and blob storage for data files. </figcaption>
+</figure>
+</div>
+
+**Technical Advantages**:
+- **Pure SQL transactions** describe all data operations (schema, CRUD)
+- **Cross-table transactions** manage multiple tables atomically
+- **Referential consistency** prevents metadata corruption (no duplicate snapshot IDs)
+- **Advanced database features** like views, nested types, transactional schema changes
+- **Single query access** vs. multiple HTTP requests to blob storage
+
 ## STAC, Zarr, and Virtual Datasets: The Future of EO Data
 
 References:
@@ -219,57 +270,6 @@ References:
         <figcaption align = "center"> Example of STAC collection of unaligned satellite imagery with each STAC item pointing to a Zarr store. </figcaption>
     </figure>
 </div>
-
-## DuckLake: SQL as Lakehouse Metadata
-
-### Addressing Iceberg's Limitations
-
-While Apache Iceberg pioneered open table formats, it has [practical limitations](https://quesma.com/blog-detail/apache-iceberg-practical-limitations-2025):
-
-<div align="center">
-<figure>
-<img src="figures/iceberg-catalog-architecture.png" alt="iceberg-catalog-architecture" width="50%">
-<figcaption align = "center"> Iceberg's metadata architecture requires many small files and HTTP requests for even simple queries. </figcaption>
-</figure>
-</div>
-
-**Iceberg Challenges**:
-- **Metadata complexity**: Many small files requiring multiple HTTP requests
-- **Write amplification**: Single-row updates create multiple metadata files
-- **Compaction overhead**: Requires separate Spark jobs for maintenance
-- **Limited real-time capabilities**: Optimized for batch, not streaming
-
-### DuckLake's SQL-First Approach
-
-DuckLake addresses these limitations by storing metadata in a transactional SQL database rather than as "many small files" in object storage. This enables single-query metadata access, reliable ACID transactions, and seamless integration with existing SQL tools. You can learn more in their [concise manifesto](https://ducklake.select/manifesto/). 
-
-**The Fundamental Problem with Existing Formats**:
-
-Iceberg and Delta Lake were designed to avoid databases entirely, encoding all metadata into "a maze of JSON and Avro files" on blob storage. However, they hit a critical limitation: as soon as you need something as ambitious as a second table or versioning, you realize **finding the latest table version is tricky in blob stores** with inconsistent guarantees. The solution? Adding a catalog service backed by... a database.
-
-**The Irony**: After going to great lengths to avoid databases, both formats ended up requiring one anyway for consistency. Yet they never revisited their core design to leverage this database effectively.
-
-**DuckLake's Insight**:
-
-> *"Once a database has entered the Lakehouse stack anyway, it makes an insane amount of sense to also use it for managing the rest of the table metadata! We can still take advantage of the 'endless' capacity and 'infinite' scalability of blob stores for storing the actual table data in open formats like Parquet, but we can much more efficiently and effectively manage the metadata needed to support changes in a database!"*
-
-**Core Design Principles**:
-1. **Store data files** in open formats on blob storage (scalability, no lock-in)
-2. **Manage metadata** in a SQL database (efficiency, consistency, transactions)
-
-<div align="center">
-<figure>
-<img src="figures/ducklake-architecture.png" alt="ducklake-architecture" width="50%">
-<figcaption align = "center"> DuckLake's architecture leverages a SQL database for metadata management and blob storage for data files. </figcaption>
-</figure>
-</div>
-
-**Technical Advantages**:
-- **Pure SQL transactions** describe all data operations (schema, CRUD)
-- **Cross-table transactions** manage multiple tables atomically
-- **Referential consistency** prevents metadata corruption (no duplicate snapshot IDs)
-- **Advanced database features** like views, nested types, transactional schema changes
-- **Single query access** vs. multiple HTTP requests to blob storage
 
 ## Simplifying Cloud Complexity: The Raw Architecture Advantage
 
