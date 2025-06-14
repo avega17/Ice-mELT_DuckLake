@@ -47,7 +47,13 @@
         "compression": null,
         "label_fmt": "shp",
         "has_imgs": false,
-        "label_count": 3356
+        "label_count": 3356,
+        "file_filters": {
+            "include_patterns": ["PV_.*\\.shp$"],
+            "exclude_patterns": ["NPV_.*\\.shp$"],
+            "use_regex": true,
+            "description": "Include all PV shapefiles (e.g., PV_Test_2020.shp) using regex. Exclude NPV negative samples."
+        }
     },
     "usa_cali_usgs_pv_2016": {
         "display_name": "USA USGS aerial imagery | 2016 | ~19K labels",
@@ -127,7 +133,13 @@
             "Point"
         ],
         "has_imgs": true,
-        "label_count": 6793
+        "label_count": 6793,
+        "file_filters": {
+            "include_patterns": [".*_polygons.*\\.(geojson|json)$"],
+            "exclude_patterns": [],
+            "use_regex": true,
+            "description": "Include all polygon files (predicted, train, cv, test) for comprehensive PV coverage including smaller facilities"
+        }
     },
     "global_harmonized_large_solar_farms_2020": {
         "doi": "10.6084/m9.figshare.11310269.v6",
@@ -139,6 +151,12 @@
         ],
         "crs": "WGS84",
         "has_imgs": false,
-        "label_count": 35272
+        "label_count": 35272,
+        "file_filters": {
+            "include_patterns": [".*solar.*WGS84.*\\.(gpkg|shp)$"],
+            "exclude_patterns": [".*wind.*"],
+            "use_regex": true,
+            "description": "Only solar farms in WGS84 CRS, exclude wind energy"
+        }
     }
 }

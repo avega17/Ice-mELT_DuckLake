@@ -1,0 +1,111 @@
+# dbt source configuration for Hamilton-loaded data
+# This shows how dbt references the raw data that Hamilton loads
+
+version: 2
+
+sources:
+  - name: raw_data
+    description: "Raw data loaded by Hamilton DOI pipeline"
+    schema: raw_data
+    tables:
+      - name: doi_pv_features
+        description: "Raw PV features from DOI datasets, loaded by Hamilton"
+        columns:
+          - name: dataset_name
+            description: "Source dataset identifier"
+            tests:
+              - not_null
+          
+          - name: doi
+            description: "DOI or source URL for the dataset"
+            tests:
+              - not_null
+          
+          - name: repository_type
+            description: "Type of repository (zenodo, usgs, github)"
+            tests:
+              - accepted_values:
+                  values: ['zenodo', 'usgs', 'github']
+          
+          - name: label_format
+            description: "Original file format (geojson, shp, gpkg, json)"
+            tests:
+              - accepted_values:
+                  values: ['geojson', 'shp', 'gpkg', 'json']
+          
+          - name: source_geometry_type
+            description: "Geometry type (Point, Polygon, MultiPolygon)"
+            tests:
+              - accepted_values:
+                  values: ['Point', 'Polygon', 'MultiPolygon']
+          
+          - name: source_crs
+            description: "Original coordinate reference system"
+          
+          - name: source_label_count
+            description: "Number of features in original dataset"
+            tests:
+              - not_null
+          
+          - name: area_m2
+            description: "Area in square meters (for polygons)"
+          
+          - name: centroid_lon
+            description: "Centroid longitude in WGS84"
+            tests:
+              - not_null
+          
+          - name: centroid_lat
+            description: "Centroid latitude in WGS84"
+            tests:
+              - not_null
+          
+          - name: geometry_wkt
+            description: "Geometry in Well-Known Text format"
+            tests:
+              - not_null
+          
+          - name: geometry
+            description: "Spatial geometry column (DuckDB spatial type)"
+          
+          - name: processed_at
+            description: "Timestamp when Hamilton processed this record"
+            tests:
+              - not_null
+          
+          - name: source_system
+            description: "System that processed the data (hamilton_doi_pipeline)"
+            tests:
+              - accepted_values:
+                  values: ['hamilton_doi_pipeline']
+
+  - name: overture_data
+    description: "Overture Maps data queried by Hamilton (views only)"
+    schema: raw_data
+    tables:
+      - name: admin_boundaries
+        description: "Administrative boundaries from Overture Maps"
+        columns:
+          - name: id
+            description: "Overture Maps feature ID"
+          
+          - name: name
+            description: "Administrative boundary name"
+          
+          - name: admin_level
+            description: "Administrative level (0=country, 1=state, 2=county)"
+          
+          - name: geometry_wkt
+            description: "Boundary geometry in WKT format"
+          
+          - name: xmin
+            description: "Bounding box minimum longitude"
+          
+          - name: ymin
+            description: "Bounding box minimum latitude"
+          
+          - name: xmax
+            description: "Bounding box maximum longitude"
+          
+          - name: ymax
+            description: "Bounding box maximum latitude"

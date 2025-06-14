@@ -1,0 +1,38 @@
+# Hamilton Pipeline Requirements
+# Core Hamilton framework
+sf-hamilton[visualization]>=1.70.0
+
+# Data fetching dependencies (same as dlt version)
+datahugger
+sciencebasepy
+requests
+tqdm
+
+# Geospatial data processing
+geopandas
+rasterio
+shapely
+pyproj
+
+# Data manipulation
+pandas
+numpy
+
+# Database and analytics
+duckdb>=1.2.0
+duckdb-engine
+
+# Utilities
+python-dotenv
+seedir
+pyyaml
+
+# Visualization (optional, for Hamilton DAG visualization)
+graphviz
+matplotlib
+
+# For future Ibis integration
+ibis-framework[duckdb]
+
+# For future MotherDuck integration
+# motherduck-duckdb-driver  # Uncomment when ready for cloud scaling

@@ -18,7 +18,7 @@ Data Lakehouse Catalog and metadata handling
     * STAC for metadata and asset discovery
     * H3 spatial indexing
 Data Sources
-    * open DOI datasets via datahugger
+    * open DOI dataset via datahugger
     * STAC assets for satellite imagery 
     * Overture Maps for global admin boundaries, building footprints, and land cover
     * Irradiance data from Google’s Solar API and NREL’s National Solar Radiation Database

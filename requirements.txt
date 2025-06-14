@@ -1,14 +1,17 @@
 # Core packages
 annotated-types
-anywidget
+# anywidget
 contextily
 cubo
 dask
-dlt[duckdb]>=1.11.0
+# dlt[duckdb]>=1.11.0
+earthengine-api
 # esda
 folium
 fsspec
 gdal
+geoarrow-pyarrow
+geoarrow-pandas
 geopandas
 geodatasets
 geopy
@@ -39,24 +42,23 @@ urllib3
 xarray
 pyyaml
 
-# Pip packages
-geoarrow-pyarrow
-geoarrow-pandas
+# data
 datahugger
 duckdb>=1.2.0
 duckdb-engine
 fiona
-earthengine-api
 jupysql~=0.11
-# jupyter_bbox_widget
+# jupyter_bbox_widget 
+motherduck
 numpy
 opencv-python
 openeo
+obstore
 pillow
 pycountry
 pygeohash
 pystac
-rastervision
+# rastervision
 rtree
 sciencebasepy
 scikit-image
