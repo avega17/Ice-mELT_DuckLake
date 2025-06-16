@@ -25,15 +25,16 @@ from hamilton import driver
 from hamilton.function_modifiers import tag
 from hamilton.htypes import Parallelizable, Collect
 
-# GeoArrow imports (optional - will fallback if not available)
+# GeoArrow imports for proper geometry handling in Arrow
 try:
     import geoarrow.pandas as _  # This registers pyarrow extension types and geoarrow accessor
     import geoarrow.pyarrow as ga
     GEOARROW_AVAILABLE = True
-    print("✅ GeoArrow available for geometry handling")
+    print("✅ GeoArrow available for proper geometry handling")
 except ImportError:
     GEOARROW_AVAILABLE = False
-    print("⚠️  GeoArrow not available, using WKT fallback for geometry handling")
+    print("❌ GeoArrow not available - please install: pip install geoarrow-pandas geoarrow-pyarrow")
+    raise ImportError("GeoArrow is required for geometry handling. Install with: pip install geoarrow-pandas geoarrow-pyarrow")
 
 # Cache configuration
 CACHE_FILE = Path("./hamilton_download_cache.json")
@@ -50,132 +51,68 @@ def create_duckdb_table_from_arrow(
     add_geometry: bool = True
 ) -> int:
     """
-    Create DuckDB table from Arrow table following best practices.
-
-    Uses DuckDB's native Arrow support with proper table registration.
+    Create DuckDB table from Arrow table using zero-copy conversion to GeoPandas.
+    
+    Avoids Arrow metadata serialization issues by converting back to GeoPandas
+    and using DuckDB's excellent native GeoPandas support.
 
     Args:
         conn: DuckDB connection
         arrow_table: Arrow table to import
         table_name: Target table name in DuckDB
-        add_geometry: Whether to convert geometry_wkt to geometry column
+        add_geometry: Whether to convert geometry column to PostGIS format
 
     Returns:
         Number of rows inserted
     """
     # Drop existing table
     conn.execute(f"DROP TABLE IF EXISTS {table_name}")
-
-    # Register Arrow table with a unique temporary name
-    temp_table_name = f"temp_arrow_{table_name.replace('.', '_').replace('-', '_')}"
-    conn.register(temp_table_name, arrow_table)
-
+    
+    print(f"   🔄 Converting Arrow table back to GeoPandas for DuckDB import")
+    
     try:
-        source_geometry_col = None
-        geometry_conversion_method = None  # "WKB" or "WKT"
+        # Use GeoArrow to convert to GeoPandas
+        gdf = ga.to_geopandas(arrow_table)
 
-        if add_geometry:
-            # Prioritize WKB: check for a 'geometry' column that is binary
-            if 'geometry' in arrow_table.column_names and pa.types.is_binary(arrow_table.schema.field('geometry').type):
-                source_geometry_col = 'geometry'
-                geometry_conversion_method = "WKB"
-                print(f"   ✨ Identified WKB geometry source column: '{source_geometry_col}'")
-            # Fallback to an explicitly named 'geometry_wkb' column if 'geometry' isn't binary WKB
-            elif 'geometry_wkb' in arrow_table.column_names and pa.types.is_binary(arrow_table.schema.field('geometry_wkb').type):
-                source_geometry_col = 'geometry_wkb'
-                geometry_conversion_method = "WKB"
-                print(f"   ✨ Identified WKB geometry source column: '{source_geometry_col}'")
-            # Fallback to WKT if no WKB column is found
-            elif 'geometry_wkt' in arrow_table.column_names:
-                source_geometry_col = 'geometry_wkt'
-                geometry_conversion_method = "WKT"
-                print(f"   ✨ Identified WKT geometry source column: '{source_geometry_col}'")
+        # Set CRS to WGS84 since all our data is standardized to this
+        if hasattr(gdf, 'geometry') and gdf.geometry is not None:
+            gdf = gdf.set_crs('EPSG:4326', allow_override=True)
+            print(f"   ✅ Created GeoDataFrame with {len(gdf)} rows and geometry column")
 
-        select_parts = []
-        for col_name in arrow_table.column_names:
-            if col_name == source_geometry_col:
-                if geometry_conversion_method == "WKB":
-                    # Use ST_GeomFromWKB for binary geometry column
-                    select_parts.append(f"CASE WHEN \"{source_geometry_col}\" IS NOT NULL THEN ST_GeomFromWKB(\"{source_geometry_col}\") ELSE NULL END as geometry")
-                elif geometry_conversion_method == "WKT":
-                    # Use ST_GeomFromText for WKT geometry column
-                    select_parts.append(f"CASE WHEN \"{source_geometry_col}\" IS NOT NULL AND \"{source_geometry_col}\" != '' THEN ST_GeomFromText(\"{source_geometry_col}\") ELSE NULL END as geometry")
-            else:
-                # Quote column names to handle potential special characters or spaces
-                select_parts.append(f"\"{col_name}\"")
+            # Convert geometry to WKB for DuckDB compatibility
+            # GeoPandas geometry objects need to be converted to WKB bytes for DuckDB
+            print(f"   🔄 Converting geometry to WKB for DuckDB")
+            gdf_copy = gdf.copy()
+            gdf_copy['geometry_wkb'] = gdf_copy.geometry.to_wkb()
+            gdf_copy = gdf_copy.drop(columns=['geometry'])
 
-        if not source_geometry_col and add_geometry:
-            print(f"   ⚠️  'add_geometry' is True, but no suitable WKB or WKT source column found in Arrow table. No 'geometry' column will be created.")
-
-        create_table_sql = f"""
-            CREATE TABLE {table_name} AS
-            SELECT {', '.join(select_parts)}
-            FROM {temp_table_name}
-        """
-
-        if source_geometry_col:
-            print(f"   🔄 Creating table '{table_name}' with geometry reconstruction from {geometry_conversion_method} (source: '{source_geometry_col}', target: 'geometry')")
+            # Use DuckDB's native support with WKB conversion
+            conn.execute(f"""
+                CREATE TABLE {table_name} AS
+                SELECT
+                    * EXCLUDE (geometry_wkb),
+                    CASE
+                        WHEN geometry_wkb IS NOT NULL
+                        THEN ST_GeomFromWKB(geometry_wkb)
+                        ELSE NULL
+                    END as geometry
+                FROM gdf_copy
+            """)
         else:
-            print(f"   📋 Creating table '{table_name}' without specific geometry conversion (add_geometry={add_geometry})")
+            print(f"   ✅ Created DataFrame with {len(gdf)} rows (no geometry)")
+            # No geometry column - simple table creation
+            conn.execute(f"""
+                CREATE TABLE {table_name} AS
+                SELECT * FROM gdf
+            """)
 
-        conn.execute(create_table_sql)
-
-        # Get row count
         row_count = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
+        print(f"   ✅ Successfully created table {table_name} with {row_count} rows")
         return row_count
-    finally:
-        # Clean up temporary registration
-        try:
-            conn.unregister(temp_table_name)
-        except:
-            pass  # Ignore cleanup errors
-
-
-def simple_concat_tables(tables: List[pa.Table]) -> pa.Table:
-    """
-    Simple concatenation of Arrow tables.
-
-    Fails fast if schemas don't match - schema harmonization is handled
-    in the staging layer where we have more control and can preserve
-    all raw columns for verification and analysis.
-
-    Args:
-        tables: List of Arrow tables to concatenate
-
-    Returns:
-        Combined Arrow table
-    """
-    print(f"📊 Concatenating {len(tables)} Arrow tables...")
-
-    if len(tables) == 0:
-        raise ValueError("No tables to combine")
-    elif len(tables) == 1:
-        return tables[0]
-
-    try:
-        # Simple concatenation - let Arrow handle schema validation
-        combined_table = pa.concat_tables(tables)
-        print(f"   ✅ Successfully concatenated {len(tables)} tables into {len(combined_table)} total records")
-        return combined_table
-
-    except pa.ArrowInvalid as schema_error:
-        # Log schema differences for debugging but don't try to fix them here
-        print(f"   ❌ Schema mismatch during concatenation: {schema_error}")
-        print(f"   📋 Schemas for debugging:")
-        for i, table in enumerate(tables):
-            schema_fields = [f"{f.name}:{f.type}" for f in table.schema]
-            print(f"     Table {i}: {schema_fields}")
-        print(f"   💡 Schema harmonization will be handled in the staging layer")
-        raise ValueError(f"Schema mismatch in raw data - will be resolved in staging: {schema_error}")
 
 
 def load_download_cache() -> Dict[str, str]:
-    """
-    Load the download cache from JSON file.
-
-    Returns:
-        Dict mapping dataset names to their cached directory paths
-    """
+    # Load the download cache from JSON file. Returns dataset_name -> cache_directory maps
     if not CACHE_FILE.exists():
         return {}
 
@@ -190,7 +127,6 @@ def load_download_cache() -> Dict[str, str]:
                 valid_cache[dataset_name] = cache_dir
             else:
                 print(f"   🗑️  Cached directory no longer exists: {cache_dir}")
-
         # Update cache file if some entries were invalid
         if len(valid_cache) != len(cache):
             save_download_cache(valid_cache)
@@ -203,12 +139,7 @@ def load_download_cache() -> Dict[str, str]:
 
 
 def save_download_cache(cache: Dict[str, str]) -> None:
-    """
-    Save the download cache to JSON file.
-
-    Args:
-        cache: Dict mapping dataset names to their cached directory paths
-    """
+    # Save the download cache to JSON file.
     try:
         with open(CACHE_FILE, 'w') as f:
             json.dump(cache, f, indent=2)
@@ -247,13 +178,7 @@ def get_cached_tempdir(dataset_name: str) -> Optional[str]:
 
 
 def cache_tempdir(dataset_name: str, temp_dir: str) -> None:
-    """
-    Cache a temporary directory location for future use.
-
-    Args:
-        dataset_name: Name of the dataset
-        temp_dir: Path to the temporary directory to cache
-    """
+    # Cache a temporary directory location 
     cache = load_download_cache()
     cache[dataset_name] = temp_dir
     save_download_cache(cache)
@@ -670,21 +595,28 @@ def process_single_dataset(
     # The current cleanup is okay if cache is only for single-run resiliency.
     # However, if we want to make it more persistent based on common expectations:
     try:
-        # GeoPandas to_arrow() handles geometry columns properly
-        # It can use WKB encoding or GeoArrow format depending on availability
-        arrow_table = processed_gdf.to_arrow(preserve_index=False, geometry_encoding='WKB')
-        print(f"   ✅ Converted to Arrow successfully: {len(arrow_table)} rows, {len(arrow_table.columns)} columns")
+        # Use GeoPandas to_arrow() with WKB encoding - this is already GeoArrow compatible!
+        print(f"   📝 Converting to Arrow with WKB geometry encoding")
+        geopandas_arrow = processed_gdf.to_arrow(index=False, geometry_encoding='WKB')
 
-        # Check what geometry encoding was used
+        # Convert GeoPandas ArrowTable to PyArrow Table
+        arrow_table = pa.table(geopandas_arrow)
+        print(f"   ✅ Converted to Arrow table with WKB geometry: {arrow_table.num_rows} rows, {len(arrow_table.columns)} columns")
+
+        # Check geometry columns
         geometry_columns = [col for col in arrow_table.column_names if 'geometry' in col.lower()]
         if geometry_columns:
-            print(f"   🗺️  Geometry-related columns in Arrow table: {geometry_columns}")
+            print(f"   🗺️  Geometry columns in Arrow table: {geometry_columns}")
+            # Show geometry column type
+            for col in geometry_columns:
+                col_type = arrow_table.schema.field(col).type
+                print(f"     {col}: {col_type}")
 
     except Exception as arrow_error:
-        print(f"   ⚠️  GeoPandas to_arrow() failed: {arrow_error}")
-        print(f"   🔄 Falling back to manual WKT conversion")
+        print(f"   ❌ Arrow conversion failed: {arrow_error}")
+        print(f"   🔄 Final fallback to manual WKT conversion")
 
-        # Fallback: manual WKT conversion
+        # Final fallback: manual WKT conversion
         arrow_df = processed_gdf.copy()
         if 'geometry' in arrow_df.columns:
             if 'geometry_wkt' not in arrow_df.columns:
@@ -692,7 +624,7 @@ def process_single_dataset(
             arrow_df = arrow_df.drop(columns=['geometry'])
 
         arrow_table = pa.Table.from_pandas(arrow_df, preserve_index=False)
-        print(f"   ✅ Fallback conversion successful: {len(arrow_table)} rows, {len(arrow_table.columns)} columns")
+        print(f"   ✅ Manual WKT conversion successful: {arrow_table.num_rows} rows, {len(arrow_table.columns)} columns")
 
     # Add dataset name to table metadata for identification during storage
     metadata = {b'dataset_name': dataset_name.encode('utf-8')}
@@ -712,7 +644,7 @@ def process_single_dataset(
     # To make cache persistent across runs, the download_doi_dataset should download to a non-temp,
     # managed cache area, and process_single_dataset should not clean it.
 
-    print(f"✓ Completed processing {dataset_name}: {len(arrow_table)} records")
+    print(f"✓ Completed processing {dataset_name}: {arrow_table.num_rows} records")
     return arrow_table
 
 
