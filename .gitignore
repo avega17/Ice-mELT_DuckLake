@@ -46,7 +46,7 @@ datasets/raw/*
 datasets/processed/
 datasets/temp/
 datasets/cache/
-
+hamilton_download_cache.json
 
 # Database files
 *.duckdb

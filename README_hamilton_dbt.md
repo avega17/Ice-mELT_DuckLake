@@ -59,7 +59,7 @@ dbt docs generate && dbt docs serve
 ## File Structure
 
 ```
-├── hamilton_doi_pipeline.py          # Main Hamilton ingestion pipeline
+├── raw_pv_doi_ingest.py          # Main Hamilton ingestion pipeline
 ├── hamilton_dbt_integration.py       # Hamilton functions for use in dbt
 ├── run_hamilton_pipeline.py          # CLI for Hamilton pipeline
 ├── test_hamilton_pipeline.py         # Hamilton tests
@@ -191,13 +191,13 @@ python run_hamilton_pipeline.py --lineage
 
 ### Programmatic Usage
 ```python
-from hamilton_doi_pipeline import run_doi_pipeline
+from raw_pv_doi_ingest import run_doi_pipeline
 
 # Load data for dbt consumption
 result = run_doi_pipeline(
     datasets=["bradbury_2016_california"],
     max_mb=100,
-    database_path="./eo_pv_data.duckdb"
+    database_path="./db/eo_pv_data.duckdb"
 )
 
 # Data is now available in raw_data.doi_pv_features

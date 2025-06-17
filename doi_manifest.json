@@ -121,7 +121,13 @@
         "label_count": [
             50426,
             68661
-        ]
+        ],
+        "file_filters": {
+            "include_patterns": ["predicted_set.geojson", ".*polygons\\.geojson$"],
+            "exclude_patterns": [".*tiles\\.geojson$"],
+            "use_regex": true,
+            "description": "Include all polygon files (predicted, train, cv, test) for comprehensive PV coverage including smaller facilities"
+        }
     },
     "global_pv_inventory_sent2_2024": {
         "doi": "https://github.com/yzyly1992/GloSoFarID/tree/main/data_coordinates",
@@ -133,13 +139,7 @@
             "Point"
         ],
         "has_imgs": true,
-        "label_count": 6793,
-        "file_filters": {
-            "include_patterns": ["predicted_set.geojson", ".*_polygons.*\\.(geojson|json)$"],
-            "exclude_patterns": [],
-            "use_regex": true,
-            "description": "Include all polygon files (predicted, train, cv, test) for comprehensive PV coverage including smaller facilities"
-        }
+        "label_count": 6793
     },
     "global_harmonized_large_solar_farms_2020": {
         "doi": "10.6084/m9.figshare.11310269.v6",

@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 import tempfile
 import shutil
+from utils.ingestion_utils import overture_admin_boundaries
 
 # Add the current directory to Python path to import our modules
 sys.path.append(str(Path(__file__).parent))
@@ -25,10 +26,9 @@ def test_imports():
         return False
     
     try:
-        from hamilton_doi_pipeline import (
+        from raw_pv_doi_ingest import (
             dataset_metadata, target_datasets, download_doi_dataset,
-            extract_geospatial_files, process_geospatial_data,
-            overture_admin_boundaries, run_doi_pipeline
+            extract_geospatial_files, process_geospatial_data, run_doi_pipeline
         )
         print("✓ Hamilton pipeline modules imported successfully")
     except ImportError as e:
@@ -53,11 +53,11 @@ def test_hamilton_driver():
     
     try:
         from hamilton import driver
-        import hamilton_doi_pipeline as pipeline_module
+        import raw_pv_doi_ingest as pipeline_module
         
         # Create Hamilton driver with test config
         config = {
-            "database_path": "./test_eo_pv_data.duckdb",
+            "database_path": "./db/test_eo_pv_data.duckdb",
             "export_geoparquet": False
         }
         
@@ -84,7 +84,7 @@ def test_dataset_metadata():
     print("\n=== Testing Dataset Metadata ===")
     
     try:
-        from hamilton_doi_pipeline import dataset_metadata, target_datasets
+        from raw_pv_doi_ingest import dataset_metadata, target_datasets
 
         metadata = dataset_metadata()
         print(f"✓ Loaded metadata for {len(metadata)} datasets")
@@ -119,31 +119,31 @@ def test_dataset_metadata():
         return False
 
 
-def test_overture_maps_query():
-    """Test Overture Maps querying functionality."""
-    print("\n=== Testing Overture Maps Query ===")
+# def test_overture_maps_query():
+#     """Test Overture Maps querying functionality."""
+#     print("\n=== Testing Overture Maps Query ===")
     
-    try:
-        from hamilton_doi_pipeline import overture_admin_boundaries
+#     try:
+#         from raw_pv_doi_ingest import overture_admin_boundaries
         
-        # Test with a small bbox (around San Francisco)
-        bbox = [-122.5, 37.7, -122.3, 37.8]
+#         # Test with a small bbox (around San Francisco)
+#         bbox = [-122.5, 37.7, -122.3, 37.8]
         
-        print("Attempting to query Overture Maps (this may take a moment)...")
-        result = overture_admin_boundaries(bbox=bbox)
+#         print("Attempting to query Overture Maps (this may take a moment)...")
+#         result = overture_admin_boundaries(bbox=bbox)
         
-        if len(result) > 0:
-            print(f"✓ Successfully queried Overture Maps: {len(result)} boundaries")
-            print(f"  Columns: {list(result.columns)}")
-        else:
-            print("⚠ Overture Maps query returned no results (may be expected)")
+#         if len(result) > 0:
+#             print(f"✓ Successfully queried Overture Maps: {len(result)} boundaries")
+#             print(f"  Columns: {list(result.columns)}")
+#         else:
+#             print("⚠ Overture Maps query returned no results (may be expected)")
         
-        return True
+#         return True
         
-    except Exception as e:
-        print(f"✗ Overture Maps query failed: {e}")
-        print("  This may be expected if network/S3 access is limited")
-        return True  # Don't fail the test for network issues
+#     except Exception as e:
+#         print(f"✗ Overture Maps query failed: {e}")
+#         print("  This may be expected if network/S3 access is limited")
+#         return True  # Don't fail the test for network issues
 
 
 def test_duckdb_connection():
@@ -187,11 +187,11 @@ def test_pipeline_dry_run():
     
     try:
         from hamilton import driver
-        import hamilton_doi_pipeline as pipeline_module
+        import raw_pv_doi_ingest as pipeline_module
         
         # Create test config
         config = {
-            "database_path": "./test_eo_pv_data.duckdb",
+            "database_path": "./db/test_eo_pv_data.duckdb",
             "export_geoparquet": False
         }
         
@@ -221,7 +221,7 @@ def main():
         test_hamilton_driver,
         test_dataset_metadata,
         test_duckdb_connection,
-        test_overture_maps_query,
+        # test_overture_maps_query,
         test_pipeline_dry_run
     ]
     

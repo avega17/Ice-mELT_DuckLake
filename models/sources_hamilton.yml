@@ -74,10 +74,10 @@ sources:
               - not_null
           
           - name: source_system
-            description: "System that processed the data (hamilton_doi_pipeline)"
+            description: "System that processed the data raw PV location datasets"
             tests:
               - accepted_values:
-                  values: ['hamilton_doi_pipeline']
+                  values: ['raw_pv_doi_ingest']
 
   - name: overture_data
     description: "Overture Maps data queried by Hamilton (views only)"

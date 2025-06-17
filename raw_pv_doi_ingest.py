@@ -7,9 +7,9 @@ more maintainable Hamilton approach that provides fine-grained lineage and self-
 
 Key improvements:
 - Uses doi_manifest.json for dataset configuration
-- Implements Hamilton's Parallelizable for concurrent processing
+- Implements Hamilton's Parallelizable for default concurrent processing
 - Proper parameterization with source() dependencies
-- Zero-copy Arrow integration for efficient data exchange
+- Zero-copy Arrow integration for efficient data exchange 
 """
 
 import json
@@ -21,6 +21,12 @@ import pandas as pd
 import duckdb
 import geopandas as gpd
 import pyarrow as pa
+
+# Import utility functions
+from utils.ingestion_utils import (
+    load_download_cache, save_download_cache, get_cached_tempdir,
+    cache_tempdir, cleanup_cache_entry, clear_all_cache, print_raw_data_summary
+)
 from hamilton import driver
 from hamilton.function_modifiers import tag
 from hamilton.htypes import Parallelizable, Collect
@@ -35,9 +41,6 @@ except ImportError:
     GEOARROW_AVAILABLE = False
     print("❌ GeoArrow not available - please install: pip install geoarrow-pandas geoarrow-pyarrow")
     raise ImportError("GeoArrow is required for geometry handling. Install with: pip install geoarrow-pandas geoarrow-pyarrow")
-
-# Cache configuration
-CACHE_FILE = Path("./hamilton_download_cache.json")
 
 # Import our existing utilities
 import sys
@@ -54,7 +57,7 @@ def create_duckdb_table_from_arrow(
     Create DuckDB table from Arrow table using zero-copy conversion to GeoPandas.
     
     Avoids Arrow metadata serialization issues by converting back to GeoPandas
-    and using DuckDB's excellent native GeoPandas support.
+    and using DuckDB's09 native GeoPandas support.
 
     Args:
         conn: DuckDB connection
@@ -110,100 +113,79 @@ def create_duckdb_table_from_arrow(
         print(f"   ✅ Successfully created table {table_name} with {row_count} rows")
         return row_count
 
+    except Exception as conversion_error:
+        print(f"   ❌ GeoArrow conversion failed: {conversion_error}")
+        print(f"   🔄 Falling back to pandas conversion")
 
-def load_download_cache() -> Dict[str, str]:
-    # Load the download cache from JSON file. Returns dataset_name -> cache_directory maps
-    if not CACHE_FILE.exists():
-        return {}
+        # Fallback to pandas if GeoArrow conversion fails
+        df = arrow_table.to_pandas()
 
-    try:
-        with open(CACHE_FILE, 'r') as f:
-            cache = json.load(f)
+        # Handle different geometry column types
+        if 'geometry' in df.columns:
+            # Check if it's WKB (binary) or WKT (string)
+            if df['geometry'].dtype == 'object' and len(df) > 0:
+                sample_val = df['geometry'].iloc[0]
+                if isinstance(sample_val, bytes):
+                    # WKB format - keep as WKB bytes for DuckDB
+                    print(f"   🗺️  Using WKB geometry column directly")
+                    gdf = df  # Keep as DataFrame with WKB bytes
 
-        # Validate that cached directories still exist
-        valid_cache = {}
-        for dataset_name, cache_dir in cache.items():
-            if Path(cache_dir).exists():
-                valid_cache[dataset_name] = cache_dir
+                    conn.execute(f"""
+                        CREATE TABLE {table_name} AS
+                        SELECT
+                            * EXCLUDE (geometry),
+                            CASE
+                                WHEN geometry IS NOT NULL
+                                THEN ST_GeomFromWKB(geometry)
+                                ELSE NULL
+                            END as geometry
+                        FROM gdf
+                    """)
+                else:
+                    # Assume it's already proper geometry or handle as regular column
+                    gdf = df
+                    conn.execute(f"""
+                        CREATE TABLE {table_name} AS
+                        SELECT * FROM gdf
+                    """)
             else:
-                print(f"   🗑️  Cached directory no longer exists: {cache_dir}")
-        # Update cache file if some entries were invalid
-        if len(valid_cache) != len(cache):
-            save_download_cache(valid_cache)
+                gdf = df
+                conn.execute(f"""
+                    CREATE TABLE {table_name} AS
+                    SELECT * FROM gdf
+                """)
+        elif 'geometry_wkt' in df.columns:
+            # Convert WKT to geometry and use ST_GeomFromText
+            print(f"   🗺️  Converting geometry_wkt column")
+            df['geometry'] = gpd.GeoSeries.from_wkt(df['geometry_wkt'])
+            df = df.drop(columns=['geometry_wkt'])
+            gdf = gpd.GeoDataFrame(df, geometry='geometry', crs='EPSG:4326')
 
-        return valid_cache
+            conn.execute(f"""
+                CREATE TABLE {table_name} AS
+                SELECT
+                    * EXCLUDE (geometry),
+                    CASE
+                        WHEN geometry IS NOT NULL AND geometry != ''
+                        THEN ST_GeomFromText(geometry)
+                        ELSE NULL
+                    END as geometry
+                FROM gdf
+            """)
+        else:
+            # No geometry column
+            gdf = df
+            conn.execute(f"""
+                CREATE TABLE {table_name} AS
+                SELECT * FROM gdf
+            """)
 
-    except Exception as e:
-        print(f"   ⚠️  Error loading cache: {e}")
-        return {}
-
-
-def save_download_cache(cache: Dict[str, str]) -> None:
-    # Save the download cache to JSON file.
-    try:
-        with open(CACHE_FILE, 'w') as f:
-            json.dump(cache, f, indent=2)
-    except Exception as e:
-        print(f"   ⚠️  Error saving cache: {e}")
-
-
-def get_cached_tempdir(dataset_name: str) -> Optional[str]:
-    """
-    Get cached temporary directory for a dataset if it exists and is valid.
-
-    Args:
-        dataset_name: Name of the dataset
-
-    Returns:
-        Path to the cached temp directory, or None if not cached/invalid
-    """
-    cache = load_download_cache()
-    if dataset_name not in cache:
-        return None
-
-    temp_dir = cache[dataset_name]
-    if not Path(temp_dir).exists():
-        # Remove invalid cache entry
-        cleanup_cache_entry(dataset_name)
-        return None
-
-    # Verify cache has files
-    cached_files = list(Path(temp_dir).rglob("*"))
-    cached_files = [f for f in cached_files if f.is_file()]
-    if not cached_files:
-        cleanup_cache_entry(dataset_name)
-        return None
-
-    return temp_dir
+        row_count = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
+        print(f"   ✅ Fallback successful: created table {table_name} with {row_count} rows")
+        return row_count
 
 
-def cache_tempdir(dataset_name: str, temp_dir: str) -> None:
-    # Cache a temporary directory location 
-    cache = load_download_cache()
-    cache[dataset_name] = temp_dir
-    save_download_cache(cache)
-    print(f"   📝 Cached temp directory for {dataset_name}: {temp_dir}")
-
-
-def cleanup_cache_entry(dataset_name: str) -> None:
-    """
-    Remove a dataset from the cache and clean up its directory.
-
-    Args:
-        dataset_name: Name of the dataset to remove from cache
-    """
-    cache = load_download_cache()
-
-    if dataset_name in cache:
-        cache_dir = Path(cache[dataset_name])
-        if cache_dir.exists():
-            import shutil
-            shutil.rmtree(cache_dir, ignore_errors=True)
-            print(f"   🗑️  Cleaned up cache directory: {cache_dir}")
-
-        del cache[dataset_name]
-        save_download_cache(cache)
-        print(f"   📝 Removed {dataset_name} from cache")
+# Cache functions moved to ingestion_utils.py
 
 
 @tag(data_source="doi", processing_stage="raw")
@@ -364,11 +346,6 @@ def download_doi_dataset(
             import signal
             import time
 
-            def timeout_handler(signum, frame):
-                # Signal handler for download timeout
-                _ = signum, frame  # Suppress unused parameter warnings
-                raise TimeoutError(f"Download timeout after 300 seconds for {dataset_name}")
-
             try:
                 # Set timeout for download (5 minutes)
                 signal.signal(signal.SIGALRM, timeout_handler)
@@ -383,13 +360,8 @@ def download_doi_dataset(
                     max_file_size=max_mb * 1024 * 1024  # Convert MB to bytes
                 )
 
-                # Cancel timeout
-                signal.alarm(0)
-
                 download_time = time.time() - start_time
                 print(f"   ⏱️  Download completed in {download_time:.1f} seconds")
-
-                # Check if download was successful
                 download_path = Path(download_dir)
                 downloaded_files = list(download_path.rglob("*"))
                 downloaded_files = [f for f in downloaded_files if f.is_file()]
@@ -411,10 +383,6 @@ def download_doi_dataset(
 
                 return download_dir
 
-            except TimeoutError as timeout_error:
-                signal.alarm(0)  # Cancel timeout
-                print(f"⏰ Download timeout for {dataset_name}: {timeout_error}")
-                raise
             except Exception as download_error:
                 signal.alarm(0)  # Cancel timeout
                 print(f"❌ Datahugger download failed for {dataset_name}: {download_error}")
@@ -495,17 +463,16 @@ def extract_geospatial_files(
             file_path_str = str(file_path)
             file_name = file_path.name
 
-            # Check include patterns (all must match if specified)
+            # Check include patterns (must match at least one)
             if include_patterns:
                 if use_regex:
-                    # Use regex matching
-                    include_match = all(
+                    include_match = any(
                         re.search(pattern, file_path_str, re.IGNORECASE)
                         for pattern in include_patterns
                     )
                 else:
                     # Use simple substring matching (case-insensitive)
-                    include_match = all(
+                    include_match = any(
                         pattern.lower() in file_path_str.lower()
                         for pattern in include_patterns
                     )
@@ -517,7 +484,6 @@ def extract_geospatial_files(
             # Check exclude patterns (none should match)
             if exclude_patterns:
                 if use_regex:
-                    # Use regex matching
                     exclude_match = any(
                         re.search(pattern, file_path_str, re.IGNORECASE)
                         for pattern in exclude_patterns
@@ -539,7 +505,6 @@ def extract_geospatial_files(
         geospatial_files = filtered_files
         print(f"   🎯 After filtering: {len(geospatial_files)} files selected")
 
-    # Convert to string paths
     file_paths = [str(f) for f in geospatial_files]
 
     if not file_paths:
@@ -566,34 +531,13 @@ def process_single_dataset(
     Downloads, extracts, processes, and converts to Arrow format
     for efficient downstream processing.
     """
-    # Download dataset
+
     download_path = download_doi_dataset(dataset_name, dataset_metadata)
-
-    # Extract geospatial files
     geospatial_files = extract_geospatial_files(download_path, dataset_name, dataset_metadata)
-
     # Process the data
     processed_gdf = process_geospatial_data(geospatial_files, dataset_name, dataset_metadata)
-
-    # Convert to Arrow for efficient data exchange
-    # Use GeoPandas' native to_arrow() method for proper geometry handling
     print(f"   📝 Converting to Arrow using GeoPandas to_arrow() method")
 
-    # Determine if the download_path came from cache and shouldn't be deleted
-    # This assumes download_doi_dataset is the only source for download_path
-    # and that its parameters (use_cache, force_download) are accessible or implicitly handled.
-    # For simplicity, we'll assume a config parameter `keep_cached_downloads` could control this.
-    # A more robust way would be for download_doi_dataset to return a flag.
-    # For this example, let's assume `dataset_metadata[dataset_name].get('keep_cache', False)`
-    # or a global config `keep_cached_downloads`.
-    # Let's simplify: if force_download was false and path was from cache, don't delete.
-    # This requires knowing if download_path was a cached path.
-    # The current structure makes this tricky without passing more state.
-    # A simpler approach: the cache is for *temporary* resumption.
-    # If persistent cache is desired, `download_doi_dataset` should download to a *persistent* cache location.
-    # And `process_single_dataset` would read from there.
-    # The current cleanup is okay if cache is only for single-run resiliency.
-    # However, if we want to make it more persistent based on common expectations:
     try:
         # Use GeoPandas to_arrow() with WKB encoding - this is already GeoArrow compatible!
         print(f"   📝 Converting to Arrow with WKB geometry encoding")
@@ -630,20 +574,6 @@ def process_single_dataset(
     metadata = {b'dataset_name': dataset_name.encode('utf-8')}
     arrow_table = arrow_table.replace_schema_metadata(metadata)
     print(f"   📝 Added dataset metadata: {dataset_name}")
-
-    # Clean up temporary directory only if it wasn't a persistent cache hit
-    # This logic is simplified; a robust solution would involve `download_doi_dataset`
-    # returning information about whether the path is from a persistent cache
-    # and if it should be kept.
-    # For now, we assume `force_download` implies it's okay to clean if it was a fresh download.
-    # if not (use_cache and not force_download and get_cached_tempdir(dataset_name) == download_path):
-    # import shutil
-    # shutil.rmtree(download_path, ignore_errors=True)
-    # The above comment block shows the complexity. The current behavior is simpler:
-    # cache helps resume a single pipeline execution, but files are cleaned up.
-    # To make cache persistent across runs, the download_doi_dataset should download to a non-temp,
-    # managed cache area, and process_single_dataset should not clean it.
-
     print(f"✓ Completed processing {dataset_name}: {arrow_table.num_rows} records")
     return arrow_table
 
@@ -729,7 +659,6 @@ def process_geospatial_data(
     else:
         print(f"   ✅ Already in target CRS: {target_crs}")
 
-    # Add dataset metadata to the GeoDataFrame
     print(f"   📝 Adding metadata columns to {len(gdf)} rows")
 
     # Ensure we're working with a copy to avoid SettingWithCopyWarning
@@ -766,21 +695,13 @@ def process_geospatial_data(
     has_polygons = any(geom_type in ['Polygon', 'MultiPolygon'] for geom_type in geom_types.index)
 
     if has_polygons:
-        # Calculate area in square meters using Web Mercator projection
-        #
-        # Web Mercator (EPSG:3857) approach for area calculation:
+        # Calculate area in square meters using Web Mercator projection (EPSG:3857)
         # - Provides reasonable area approximations for most geospatial applications
-        # - Widely compatible with downstream tools and libraries
         # - Introduces some distortion, especially at high latitudes (>60°), but acceptable for PV analysis
-        # - Follows established pattern from utils/fetch_and_preprocess.py
-        #
         # References:
         # - Web Mercator distortion: https://en.wikipedia.org/wiki/Web_Mercator_projection#Distortion
         # - EPSG:3857 specification: https://epsg.io/3857
         # - Snyder, J.P. (1987). Map Projections: A Working Manual. USGS Professional Paper 1395
-        #
-        # Future enhancement: Validate against datasets with ground-truth area columns
-        # for accuracy assessment and potential upgrade to geodesic calculations
 
         print(f"   🔄 Converting to Web Mercator (EPSG:3857) for area calculation")
         try:
@@ -833,35 +754,10 @@ def process_geospatial_data(
 
     # Add processing metadata
     gdf.loc[:, 'processed_at'] = pd.Timestamp.now()
-    gdf.loc[:, 'source_system'] = 'hamilton_doi_pipeline'
+    gdf.loc[:, 'source_system'] = 'raw_pv_doi_ingest'
     
     print(f"Processed {len(gdf)} features for {dataset_name}")
     return gdf
-
-
-@tag(data_source="doi", processing_stage="export", dbt_source="raw")
-def export_combined_geoparquet(
-    combined_datasets: pa.Table
-) -> str:
-    """
-    Export combined datasets to GeoParquet format for dbt ingestion.
-
-    This creates the raw data layer that dbt staging models will consume.
-    Uses Arrow table for efficient I/O operations.
-    """
-    # Ensure output directory exists
-    output_dir = Path("./datasets/raw/geoparquet")
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Export to single combined parquet file
-    output_path = output_dir / "combined_doi_pv_features.parquet"
-
-    # Write Arrow table to Parquet
-    import pyarrow.parquet as pq
-    pq.write_table(combined_datasets, output_path, compression="snappy")
-
-    print(f"Exported {len(combined_datasets)} records to {output_path}")
-    return str(output_path)
 
 
 @tag(data_source="doi", processing_stage="parallel")
@@ -881,7 +777,7 @@ def parallel_dataset_processing(
 @tag(data_source="doi", processing_stage="store")
 def store_individual_datasets(
     parallel_dataset_processing: Collect[pa.Table],
-    database_path: str = "./eo_pv_data.duckdb"
+    database_path: str = "./db/eo_pv_data.duckdb"
 ) -> Dict[str, str]:
     """
     Store each processed dataset individually in DuckDB.
@@ -931,67 +827,10 @@ def store_individual_datasets(
     return stored_tables
 
 
-@tag(data_source="overture", processing_stage="query")
-def overture_admin_boundaries(
-    bbox: Optional[List[float]] = None
-) -> pd.DataFrame:
-    """
-    Query Overture Maps administrative boundaries directly from S3.
-
-    Uses DuckDB to query Overture Maps Parquet files without downloading.
-    Returns view/CTE only to minimize storage for free tier usage.
-    """
-
-    # Connect to DuckDB and install required extensions
-    conn = duckdb.connect()
-    conn.execute("INSTALL spatial; LOAD spatial;")
-    conn.execute("INSTALL h3; LOAD h3;")
-    conn.execute("INSTALL httpfs; LOAD httpfs;")
-
-    # Overture Maps S3 path for administrative boundaries
-    overture_s3_path = "s3://overturemaps-us-west-2/release/2024-11-13.0/theme=admins/type=*/*.parquet"
-
-    # Build query with optional bbox filtering
-    query = f"""
-    SELECT
-        id,
-        names.primary as name,
-        admin_level,
-        ST_AsText(geometry) as geometry_wkt,
-        bbox.xmin, bbox.ymin, bbox.xmax, bbox.ymax
-    FROM read_parquet('{overture_s3_path}')
-    WHERE admin_level <= 2  -- Countries and major subdivisions only
-    """
-
-    if bbox:
-        # Add spatial filter if bbox provided
-        xmin, ymin, xmax, ymax = bbox
-        query += f"""
-        AND bbox.xmin <= {xmax} AND bbox.xmax >= {xmin}
-        AND bbox.ymin <= {ymax} AND bbox.ymax >= {ymin}
-        """
-
-    query += " LIMIT 1000"  # Reasonable limit for free tier
-
-    try:
-        result = conn.execute(query).fetchdf()
-        print(f"Retrieved {len(result)} administrative boundaries from Overture Maps")
-        return result
-    except Exception as e:
-        print(f"Error querying Overture Maps: {e}")
-        # Return empty DataFrame with expected schema
-        return pd.DataFrame(columns=[
-            'id', 'name', 'admin_level', 'geometry_wkt',
-            'xmin', 'ymin', 'xmax', 'ymax'
-        ])
-    finally:
-        conn.close()
-
-
 @tag(data_source="combined", processing_stage="load", dbt_source="raw")
 def load_raw_to_duckdb(
     combined_datasets: pa.Table,
-    database_path: str = "./eo_pv_data.duckdb",
+    database_path: str = "./db/eo_pv_data.duckdb",
     schema_name: str = "raw_data"
 ) -> str:
     """
@@ -1028,45 +867,9 @@ def load_raw_to_duckdb(
     return f"Successfully loaded {count} records to raw schema"
 
 
-def print_raw_data_summary(database_path: str) -> None:
-    """
-    Prints a summary of tables and row counts in the raw_data schema.
-
-    Args:
-        database_path: Path to the DuckDB database file.
-    """
-    print(f"\n{'='*80}")
-    print(f"📊 Summary of tables in 'raw_data' schema ({database_path}):")
-    print(f"{'='*80}")
-    try:
-        with duckdb.connect(database_path, read_only=True) as conn:
-            # Ensure spatial extension is available for any geometry checks if needed,
-            # though not strictly for count.
-            try:
-                conn.execute("INSTALL spatial; LOAD spatial;")
-            except Exception:
-                pass # Ignore if already loaded or fails in read-only, not critical for count
-
-            tables_df = conn.execute("""
-                SELECT table_name
-                FROM information_schema.tables
-                WHERE table_schema = 'raw_data'
-                ORDER BY table_name;
-            """).fetchdf()
-
-            if not tables_df.empty:
-                for table_name in tables_df['table_name']:
-                    count = conn.execute(f"SELECT COUNT(*) FROM raw_data.\"{table_name}\"").fetchone()[0]
-                    print(f"   - raw_data.{table_name}: {count} rows")
-            else:
-                print("   No tables found in 'raw_data' schema.")
-    except Exception as e:
-        print(f"   Could not retrieve summary for 'raw_data' schema: {e}")
-    print(f"{'='*80}\n")
-
 # Main pipeline orchestration function for Hamilton
 def run_doi_pipeline(
-    database_path: str = "./eo_pv_data.duckdb",
+    database_path: str = "./db/eo_pv_data.duckdb",
     export_geoparquet: bool = True,
     use_parallel: bool = True,
     use_cache: bool = True,
@@ -1086,7 +889,7 @@ def run_doi_pipeline(
     from hamilton.execution import executors
 
     # Import this module for Hamilton
-    import hamilton_doi_pipeline as pipeline_module
+    import raw_pv_doi_ingest as pipeline_module
 
     # Create Hamilton driver configuration
     config = {
@@ -1119,7 +922,7 @@ def run_doi_pipeline(
         from hamilton.base import DictResult
         dr = driver.Driver(config, pipeline_module, adapter=DictResult())
         print("✓ Using Hamilton standard executor (sequential processing)")
-        return run_sequential_pipeline(dr, database_path, export_geoparquet)
+        return run_sequential_pipeline(dr, database_path)
 
     try:
         # Define what we want to execute - store individual datasets
@@ -1147,20 +950,14 @@ def run_doi_pipeline(
 
 def run_sequential_pipeline(
     dr: driver.Driver,
-    database_path: str,
-    export_geoparquet: bool = False  # Not used in individual storage approach
+    database_path: str
 ) -> str:
     """
     Run pipeline sequentially without parallel processing.
 
     This processes datasets one by one and stores each individually.
     """
-    # Note: export_geoparquet parameter kept for compatibility but not used
-    # in individual storage approach
-    _ = export_geoparquet  # Suppress unused parameter warning
-
     print("Running sequential pipeline (processing datasets one by one)...")
-
     # Get dataset metadata and targets separately to avoid DataFrame conversion issues
     metadata_result = dr.execute(["dataset_metadata"])
     metadata = metadata_result["dataset_metadata"]
@@ -1241,7 +1038,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Run Hamilton DOI dataset pipeline")
-    parser.add_argument("--database", default="./eo_pv_data.duckdb",
+    parser.add_argument("--database", default="./db/eo_pv_data.duckdb",
                        help="Path to DuckDB database")
     parser.add_argument("--no-geoparquet", action="store_true",
                        help="Skip GeoParquet export")
@@ -1258,16 +1055,7 @@ if __name__ == "__main__":
 
     # Handle cache clearing
     if args.clear_cache:
-        import shutil
-        if CACHE_FILE.exists():
-            cache = load_download_cache()
-            for dataset_name, temp_dir in cache.items():
-                if Path(temp_dir).exists():
-                    shutil.rmtree(temp_dir, ignore_errors=True)
-                    print(f"🗑️  Removed cached temp directory: {temp_dir}")
-            CACHE_FILE.unlink()
-            print(f"🗑️  Removed cache file: {CACHE_FILE}")
-        print("✅ Cache cleared successfully")
+        clear_all_cache()
         exit(0)
 
     # Show cache status
