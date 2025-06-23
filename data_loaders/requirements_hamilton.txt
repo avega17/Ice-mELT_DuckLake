@@ -1,6 +1,8 @@
 # Hamilton Pipeline Requirements
 # Core Hamilton framework
 sf-hamilton[visualization]>=1.70.0
+sf-hamilton[ui]
+sf-hamilton[lsp]
 
 # Data fetching dependencies (same as dlt version)
 datahugger

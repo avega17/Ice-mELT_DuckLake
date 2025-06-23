@@ -275,7 +275,7 @@ from {{ source('raw_data', 'pv_features') }}
 
 # Ibis provides DataFrame API over SQL
 import ibis
-conn = ibis.duckdb.connect("eo_pv_data.duckdb")
+conn = ibis.duckdb.connect("./db/eo_pv_data.duckdb")
 pv_table = conn.table("staging.stg_pv_features")
 result = (
     pv_table
@@ -662,7 +662,7 @@ Future-proof with Ibis dataframe API:
 def create_cross_database_query(backend: str = "duckdb"):
     """Create database-agnostic queries with Ibis."""
     if backend == "duckdb":
-        conn = ibis.duckdb.connect("eo_pv_data.duckdb")
+        conn = ibis.duckdb.connect("./db/eo_pv_data.duckdb")
     elif backend == "postgres":
         conn = ibis.postgres.connect(...)
     

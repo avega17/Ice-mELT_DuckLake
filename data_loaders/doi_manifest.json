@@ -123,7 +123,7 @@
             68661
         ],
         "file_filters": {
-            "include_patterns": ["predicted_set.geojson", ".*polygons\\.geojson$"],
+            "include_patterns": ["predicted_.*\\.geojson$", ".*polygons\\.geojson$"],
             "exclude_patterns": [".*tiles\\.geojson$"],
             "use_regex": true,
             "description": "Include all polygon files (predicted, train, cv, test) for comprehensive PV coverage including smaller facilities"

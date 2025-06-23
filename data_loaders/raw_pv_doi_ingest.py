@@ -22,11 +22,39 @@ import duckdb
 import geopandas as gpd
 import pyarrow as pa
 
-# Import utility functions
-from utils.ingestion_utils import (
-    load_download_cache, save_download_cache, get_cached_tempdir,
-    cache_tempdir, cleanup_cache_entry, clear_all_cache, print_raw_data_summary
-)
+# Import utility functions with robust import handling
+try:
+    # Try relative import first (when running as script)
+    from utils.ingestion_utils import (
+        load_download_cache, save_download_cache, get_cached_tempdir,
+        cache_tempdir, cleanup_cache_entry, clear_all_cache, print_raw_data_summary
+    )
+except ImportError:
+    try:
+        # Try absolute import (when imported as module by Hamilton CLI)
+        from data_loaders.utils.ingestion_utils import (
+            load_download_cache, save_download_cache, get_cached_tempdir,
+            cache_tempdir, cleanup_cache_entry, clear_all_cache, print_raw_data_summary
+        )
+    except ImportError:
+        # Fallback: add current directory to path and try again
+        import sys
+        from pathlib import Path
+        current_dir = Path(os.getcwd()).parent
+        if str(current_dir) not in sys.path:
+            sys.path.insert(0, str(current_dir))
+        try:
+            from utils.ingestion_utils import (
+                load_download_cache, save_download_cache, get_cached_tempdir,
+                cache_tempdir, cleanup_cache_entry, clear_all_cache, print_raw_data_summary
+            )
+        except ImportError as e:
+            # If all imports fail, provide helpful error message
+            raise ImportError(
+                f"Cannot import ingestion utilities. Tried multiple import paths. "
+                f"Ensure utils/ingestion_utils.py exists in the correct location. "
+                f"Original error: {e}"
+            )
 from hamilton import driver
 from hamilton.function_modifiers import tag
 from hamilton.htypes import Parallelizable, Collect
@@ -42,9 +70,19 @@ except ImportError:
     print("❌ GeoArrow not available - please install: pip install geoarrow-pandas geoarrow-pyarrow")
     raise ImportError("GeoArrow is required for geometry handling. Install with: pip install geoarrow-pandas geoarrow-pyarrow")
 
-# Import our existing utilities
+# Ensure project root is in Python path for Hamilton CLI compatibility
 import sys
-sys.path.append(str(Path(__file__).parent))
+from pathlib import Path
+
+# Add project root to Python path
+project_root = Path(os.getcwd()).parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+# Also add parent directory in case we're in a subdirectory
+parent_dir = project_root.parent
+if str(parent_dir) not in sys.path:
+    sys.path.insert(0, str(parent_dir))
 
 
 def create_duckdb_table_from_arrow(
@@ -126,7 +164,6 @@ def create_duckdb_table_from_arrow(
             if df['geometry'].dtype == 'object' and len(df) > 0:
                 sample_val = df['geometry'].iloc[0]
                 if isinstance(sample_val, bytes):
-                    # WKB format - keep as WKB bytes for DuckDB
                     print(f"   🗺️  Using WKB geometry column directly")
                     gdf = df  # Keep as DataFrame with WKB bytes
 
@@ -188,10 +225,25 @@ def create_duckdb_table_from_arrow(
 # Cache functions moved to ingestion_utils.py
 
 
-@tag(data_source="doi", processing_stage="raw")
+@tag(
+    data_source="doi",
+    processing_stage="raw",
+    data_type="metadata",
+    hamilton_node_type="source",
+    description="Load DOI dataset metadata configuration"
+)
 def dataset_metadata() -> Dict[str, Dict[str, Any]]:
-    """Load dataset metadata configuration from doi_manifest.json."""
-    manifest_path = Path(__file__).parent / "doi_manifest.json"
+    """
+    Load dataset metadata configuration from doi_manifest.json.
+
+    Returns:
+        Dict mapping dataset names to their metadata configurations.
+        This function has no dependencies and serves as a root node in the DAG.
+    """
+    from pathlib import Path
+    import json
+
+    manifest_path = Path(os.getcwd()).parent / "doi_manifest.json"
 
     if not manifest_path.exists():
         raise FileNotFoundError(f"DOI manifest not found: {manifest_path}")
@@ -215,42 +267,70 @@ def dataset_metadata() -> Dict[str, Dict[str, Any]]:
     return vector_datasets
 
 
-@tag(data_source="doi", processing_stage="config")
-def target_datasets() -> Parallelizable[str]:
+@tag(
+    data_source="doi",
+    processing_stage="config",
+    data_type="dataset_names",
+    hamilton_node_type="generator",
+    execution_mode="parallel",
+    description="Generate dataset names for parallel processing"
+)
+def target_datasets(dataset_metadata: Dict[str, Dict[str, Any]]) -> Parallelizable[str]:
     """
     Generate dataset names for parallel processing.
 
     Uses Hamilton's Parallelizable to enable concurrent dataset processing.
     Processes all available vector datasets by default.
-    """
-    manifest = dataset_metadata()
 
+    Args:
+        dataset_metadata: Dataset metadata from dataset_metadata() function
+
+    Yields:
+        str: Dataset names for parallel processing
+    """
     # Process all available vector datasets
-    available_datasets = list(manifest.keys())
+    available_datasets = list(dataset_metadata.keys())
 
     print(f"Processing {len(available_datasets)} datasets in parallel")
     for dataset_name in available_datasets:
         yield dataset_name
 
 
-@tag(data_source="doi", processing_stage="config", execution_mode="sequential")
-def target_datasets_list() -> List[str]:
+@tag(
+    data_source="doi",
+    processing_stage="config",
+    data_type="dataset_names",
+    hamilton_node_type="generator",
+    execution_mode="sequential",
+    description="Generate dataset names for sequential processing"
+)
+def target_datasets_list(dataset_metadata: Dict[str, Dict[str, Any]]) -> List[str]:
     """
     Generate dataset names for sequential processing.
 
     Returns a simple list instead of Parallelizable for standard executor.
     Processes all available vector datasets by default.
-    """
-    manifest = dataset_metadata()
 
+    Args:
+        dataset_metadata: Dataset metadata from dataset_metadata() function
+
+    Returns:
+        List[str]: Dataset names for sequential processing
+    """
     # Process all available vector datasets
-    available_datasets = list(manifest.keys())
+    available_datasets = list(dataset_metadata.keys())
 
     print(f"Processing {len(available_datasets)} datasets sequentially")
     return available_datasets
 
 
-@tag(data_source="doi", processing_stage="download")
+@tag(
+    data_source="doi",
+    processing_stage="download",
+    io_operation="download",
+    caching="enabled",
+    description="Download DOI dataset with intelligent caching"
+)
 def download_doi_dataset(
     dataset_name: str,
     dataset_metadata: Dict[str, Dict[str, Any]],
@@ -259,18 +339,33 @@ def download_doi_dataset(
     force_download: bool = False  # Force re-download even if cached
 ) -> str:
     """
-    Download DOI dataset to directory with caching support.
+    Download DOI dataset to directory with intelligent caching support.
+
+    This function handles downloading datasets from various DOI repositories
+    (Zenodo, GitHub, USGS) with smart caching to avoid redundant downloads
+    during development and testing.
 
     Args:
-        dataset_name: Name of the dataset
-        dataset_metadata: Metadata dictionary
-        max_mb: Maximum file size in MB
-        use_cache: Whether to use cached downloads
-        force_download: Force re-download even if cached
+        dataset_name: Name of the dataset to download
+        dataset_metadata: Complete metadata dictionary from doi_manifest.json
+        max_mb: Maximum file size in MB (default: 250MB for large datasets)
+        use_cache: Whether to use cached downloads (default: True)
+        force_download: Force re-download even if cached (default: False)
 
     Returns:
-        Path to downloaded/extracted files
+        str: Path to downloaded/extracted files directory
+
+    Raises:
+        ValueError: If dataset_name not found in metadata
+        Exception: If download fails after retries
+
+    Note:
+        - Supports GitHub repositories and DOI-based downloads
+        - Implements intelligent caching with JSON persistence
+        - Handles large datasets up to specified max_mb limit
     """
+    from pathlib import Path
+
     if dataset_name not in dataset_metadata:
         raise ValueError(f"Unknown dataset: {dataset_name}")
 
@@ -290,6 +385,10 @@ def download_doi_dataset(
     # Use datahugger to download the dataset
     import datahugger
     import shutil
+    from pathlib import Path
+    import tempfile
+    import os
+
 
     # Always create a new temporary directory for downloads
     download_dir = tempfile.mkdtemp(prefix=f"{dataset_name}_")
@@ -302,8 +401,20 @@ def download_doi_dataset(
             print(f"   Repository URL: {metadata['doi']}")
             print(f"   Target directory: {download_dir}")
 
-            # Import the existing GitHub fetch function
-            from utils.fetch_and_preprocess import fetch_from_github
+            # Import the existing GitHub fetch function with robust import handling
+            try:
+                from utils.fetch_and_preprocess import fetch_from_github
+            except ImportError:
+                try:
+                    from data_loaders.utils.fetch_and_preprocess import fetch_from_github
+                except ImportError:
+                    # Add parent directory to path and try again
+                    import sys
+                    from pathlib import Path
+                    parent_dir = Path(os.getcwd()).parent.parent
+                    if str(parent_dir) not in sys.path:
+                        sys.path.insert(0, str(parent_dir))
+                    from utils.fetch_and_preprocess import fetch_from_github
 
             try:
                 result = fetch_from_github(
@@ -342,15 +453,10 @@ def download_doi_dataset(
             print(f"   Max file size: {max_mb} MB")
             print(f"   Starting download at {pd.Timestamp.now()}")
 
-            # Call datahugger with timeout and progress monitoring
-            import signal
+            # Call datahugger for download
             import time
 
             try:
-                # Set timeout for download (5 minutes)
-                signal.signal(signal.SIGALRM, timeout_handler)
-                signal.alarm(300)  # 5 minute timeout
-
                 start_time = time.time()
                 print(f"   📡 Calling datahugger.get()...")
 
@@ -384,7 +490,6 @@ def download_doi_dataset(
                 return download_dir
 
             except Exception as download_error:
-                signal.alarm(0)  # Cancel timeout
                 print(f"❌ Datahugger download failed for {dataset_name}: {download_error}")
                 print(f"   DOI: {metadata['doi']}")
                 print(f"   Repo: {metadata['repo']}")
@@ -399,17 +504,49 @@ def download_doi_dataset(
         raise
 
 
-@tag(data_source="doi", processing_stage="extract")
+@tag(
+    data_source="doi",
+    processing_stage="extract",
+    file_operations="discovery",
+    geospatial_formats=["geojson", "shp", "gpkg", "json"],
+    description="Extract and filter geospatial files from downloaded datasets"
+)
 def extract_geospatial_files(
     download_path: str,
     dataset_name: str,
     dataset_metadata: Dict[str, Dict[str, Any]]
 ) -> List[str]:
     """
-    Extract and locate geospatial files from downloaded dataset.
+    Extract and locate geospatial files from downloaded dataset with intelligent filtering.
 
-    Returns list of paths to geospatial files (GeoJSON, SHP, GPKG, JSON).
+    This function discovers geospatial files in various formats and applies
+    dataset-specific filtering rules defined in the metadata configuration.
+    Supports complex include/exclude patterns for precise file selection.
+
+    Args:
+        download_path: Path to downloaded dataset directory
+        dataset_name: Name of the dataset for logging and filtering
+        dataset_metadata: Complete metadata with file filtering rules
+
+    Returns:
+        List[str]: Paths to filtered geospatial files
+
+    Raises:
+        ValueError: If no valid geospatial files found after filtering
+
+    Supported Formats:
+        - GeoJSON (.geojson)
+        - Shapefile (.shp)
+        - GeoPackage (.gpkg)
+        - JSON (.json) - for non-geospatial JSON with coordinates
+
+    Filtering Features:
+        - Include/exclude patterns from metadata
+        - Regex and glob pattern support
+        - Dataset-specific file selection rules
     """
+    from pathlib import Path
+
     metadata = dataset_metadata[dataset_name]
     label_fmt = metadata["label_fmt"]
 
@@ -520,28 +657,121 @@ def extract_geospatial_files(
     return file_paths
 
 
-@tag(data_source="doi", processing_stage="process")
-def process_single_dataset(
-    dataset_name: str,
+@tag(
+    data_source="doi",
+    processing_stage="download",
+    data_type="file_path",
+    hamilton_node_type="transform",
+    io_operation="download",
+    description="Download DOI dataset and return file path"
+)
+def dataset_download_path(
+    target_datasets: str,
+    dataset_metadata: Dict[str, Dict[str, Any]],
+    max_mb: int = 250,
+    use_cache: bool = True,
+    force_download: bool = False
+) -> str:
+    """
+    Download DOI dataset and return path to downloaded files.
+
+    This function wraps download_doi_dataset to provide proper Hamilton dependency injection.
+
+    Args:
+        target_datasets: Dataset name from target_datasets() function (Hamilton injects individual values)
+        dataset_metadata: Dataset metadata from dataset_metadata() function
+        max_mb: Maximum file size in MB
+        use_cache: Whether to use cached downloads
+        force_download: Force re-download even if cached
+
+    Returns:
+        str: Path to downloaded/extracted files
+    """
+    return download_doi_dataset(target_datasets, dataset_metadata, max_mb, use_cache, force_download)
+
+
+@tag(
+    data_source="doi",
+    processing_stage="extract",
+    data_type="file_paths",
+    hamilton_node_type="transform",
+    io_operation="file_discovery",
+    description="Extract and locate geospatial files from downloaded dataset"
+)
+def dataset_geospatial_files(
+    dataset_download_path: str,
+    target_datasets: str,
     dataset_metadata: Dict[str, Dict[str, Any]]
+) -> List[str]:
+    """
+    Extract and locate geospatial files from downloaded dataset.
+
+    Args:
+        dataset_download_path: Path to downloaded files from dataset_download_path() function
+        target_datasets: Dataset name from target_datasets() function
+        dataset_metadata: Dataset metadata from dataset_metadata() function
+
+    Returns:
+        List[str]: Paths to geospatial files
+    """
+    return extract_geospatial_files(dataset_download_path, target_datasets, dataset_metadata)
+
+
+@tag(
+    data_source="doi",
+    processing_stage="process",
+    data_type="geodataframe",
+    hamilton_node_type="transform",
+    geospatial_operation="standardization",
+    description="Process geospatial files into standardized GeoDataFrame"
+)
+def dataset_processed_gdf(
+    dataset_geospatial_files: List[str],
+    target_datasets: str,
+    dataset_metadata: Dict[str, Dict[str, Any]]
+) -> gpd.GeoDataFrame:
+    """
+    Process geospatial files into standardized GeoDataFrame.
+
+    Args:
+        dataset_geospatial_files: Geospatial file paths from dataset_geospatial_files() function
+        target_datasets: Dataset name from target_datasets() function
+        dataset_metadata: Dataset metadata from dataset_metadata() function
+
+    Returns:
+        gpd.GeoDataFrame: Processed geospatial data
+    """
+    return process_geospatial_data(dataset_geospatial_files, target_datasets, dataset_metadata)
+
+
+@tag(
+    data_source="doi",
+    processing_stage="convert",
+    data_type="arrow_table",
+    hamilton_node_type="transform",
+    data_format="arrow",
+    description="Convert processed GeoDataFrame to Arrow table format"
+)
+def dataset_arrow_table(
+    dataset_processed_gdf: gpd.GeoDataFrame,
+    target_datasets: str
 ) -> pa.Table:
     """
-    Complete processing pipeline for a single dataset.
+    Convert processed GeoDataFrame to Arrow table format.
 
-    Downloads, extracts, processes, and converts to Arrow format
-    for efficient downstream processing.
+    Args:
+        dataset_processed_gdf: Processed GeoDataFrame from dataset_processed_gdf() function
+        target_datasets: Dataset name from target_datasets() function for metadata
+
+    Returns:
+        pa.Table: Arrow table with dataset metadata
     """
-
-    download_path = download_doi_dataset(dataset_name, dataset_metadata)
-    geospatial_files = extract_geospatial_files(download_path, dataset_name, dataset_metadata)
-    # Process the data
-    processed_gdf = process_geospatial_data(geospatial_files, dataset_name, dataset_metadata)
     print(f"   📝 Converting to Arrow using GeoPandas to_arrow() method")
 
     try:
         # Use GeoPandas to_arrow() with WKB encoding - this is already GeoArrow compatible!
         print(f"   📝 Converting to Arrow with WKB geometry encoding")
-        geopandas_arrow = processed_gdf.to_arrow(index=False, geometry_encoding='WKB')
+        geopandas_arrow = dataset_processed_gdf.to_arrow(index=False, geometry_encoding='WKB')
 
         # Convert GeoPandas ArrowTable to PyArrow Table
         arrow_table = pa.table(geopandas_arrow)
@@ -561,7 +791,7 @@ def process_single_dataset(
         print(f"   🔄 Final fallback to manual WKT conversion")
 
         # Final fallback: manual WKT conversion
-        arrow_df = processed_gdf.copy()
+        arrow_df = dataset_processed_gdf.copy()
         if 'geometry' in arrow_df.columns:
             if 'geometry_wkt' not in arrow_df.columns:
                 arrow_df['geometry_wkt'] = arrow_df['geometry'].to_wkt()
@@ -571,10 +801,10 @@ def process_single_dataset(
         print(f"   ✅ Manual WKT conversion successful: {arrow_table.num_rows} rows, {len(arrow_table.columns)} columns")
 
     # Add dataset name to table metadata for identification during storage
-    metadata = {b'dataset_name': dataset_name.encode('utf-8')}
+    metadata = {b'dataset_name': target_datasets.encode('utf-8')}
     arrow_table = arrow_table.replace_schema_metadata(metadata)
-    print(f"   📝 Added dataset metadata: {dataset_name}")
-    print(f"✓ Completed processing {dataset_name}: {arrow_table.num_rows} records")
+    print(f"   📝 Added dataset metadata: {target_datasets}")
+    print(f"✓ Completed processing {target_datasets}: {arrow_table.num_rows} records")
     return arrow_table
 
 
@@ -760,32 +990,62 @@ def process_geospatial_data(
     return gdf
 
 
-@tag(data_source="doi", processing_stage="parallel")
-def parallel_dataset_processing(
-    target_datasets: Parallelizable[str],
-    dataset_metadata: Dict[str, Dict[str, Any]]
-) -> pa.Table:
+@tag(
+    data_source="doi",
+    processing_stage="collect",
+    data_type="arrow_tables",
+    hamilton_node_type="collect",
+    execution_mode="parallel",
+    description="Collect all processed Arrow tables from parallel execution"
+)
+def collected_arrow_tables(
+    dataset_arrow_table: Collect[pa.Table]
+) -> List[pa.Table]:
     """
-    Process individual dataset using Hamilton's parallel execution.
+    Collect all processed Arrow tables from parallel execution.
 
-    This function processes each dataset yielded by target_datasets
-    in parallel, leveraging Hamilton's Parallelizable functionality.
+    This function collects all Arrow tables produced by the parallel processing
+    of individual datasets, using Hamilton's Collect functionality.
+
+    Args:
+        dataset_arrow_table: Collection of processed Arrow tables from dataset_arrow_table() function
+
+    Returns:
+        List[pa.Table]: List of all processed Arrow tables
     """
-    return process_single_dataset(target_datasets, dataset_metadata)
+    # Hamilton automatically collects all Arrow tables from parallel processing
+    # target_datasets -> dataset_download_path -> dataset_geospatial_files ->
+    # dataset_processed_gdf -> dataset_arrow_table -> collected_arrow_tables
+    return list(dataset_arrow_table)
 
 
-@tag(data_source="doi", processing_stage="store")
+@tag(
+    data_source="doi",
+    processing_stage="store",
+    data_type="database_tables",
+    hamilton_node_type="sink",
+    io_operation="database_write",
+    database_type="duckdb",
+    description="Store processed datasets individually in DuckDB"
+)
 def store_individual_datasets(
-    parallel_dataset_processing: Collect[pa.Table],
-    database_path: str = "./db/eo_pv_data.duckdb"
+    collected_arrow_tables: List[pa.Table],
+    database_path: str = "../db/eo_pv_data.duckdb"
 ) -> Dict[str, str]:
     """
     Store each processed dataset individually in DuckDB.
 
     Each dataset maintains its own schema - staging layer handles harmonization.
     No concatenation at raw layer - preserves all original columns.
+
+    Args:
+        collected_arrow_tables: List of processed Arrow tables from collected_arrow_tables() function
+        database_path: Path to DuckDB database
+
+    Returns:
+        Dict[str, str]: Mapping of dataset names to table information
     """
-    if not parallel_dataset_processing:
+    if not collected_arrow_tables:
         raise ValueError("No datasets were processed successfully")
 
     stored_tables = {}
@@ -797,7 +1057,7 @@ def store_individual_datasets(
         # Create raw schema
         conn.execute("CREATE SCHEMA IF NOT EXISTS raw_data")
 
-        for table in parallel_dataset_processing:
+        for table in collected_arrow_tables:
             # Extract dataset name from table metadata
             dataset_name = "unknown_dataset"
             if hasattr(table, 'schema') and table.schema.metadata:
@@ -830,7 +1090,7 @@ def store_individual_datasets(
 @tag(data_source="combined", processing_stage="load", dbt_source="raw")
 def load_raw_to_duckdb(
     combined_datasets: pa.Table,
-    database_path: str = "./db/eo_pv_data.duckdb",
+    database_path: str = "../db/eo_pv_data.duckdb",
     schema_name: str = "raw_data"
 ) -> str:
     """
@@ -869,39 +1129,55 @@ def load_raw_to_duckdb(
 
 # Main pipeline orchestration function for Hamilton
 def run_doi_pipeline(
-    database_path: str = "./db/eo_pv_data.duckdb",
+    database_path: str = "../db/eo_pv_data.duckdb",
     export_geoparquet: bool = True,
     use_parallel: bool = True,
     use_cache: bool = True,
-    force_download: bool = False
+    force_download: bool = False,
+    max_mb: int = 250
 ) -> str:
     """
-    Run the complete DOI dataset pipeline using Hamilton with V2 executor.
+    Run the complete DOI dataset pipeline using Hamilton with proper Builder patterns.
+
+    This function demonstrates Hamilton best practices for:
+    - Builder pattern usage for driver creation
+    - Proper configuration management
+    - Parallel vs sequential execution patterns
+    - Integration with dbt workflows
 
     Args:
         database_path: Path to DuckDB database
         export_geoparquet: Whether to export to GeoParquet format
         use_parallel: Whether to use parallel processing
+        use_cache: Whether to use download caching
+        force_download: Force re-download even if cached
+        max_mb: Maximum file size in MB for downloads
 
     Returns:
-        Status message
+        str: Status message indicating pipeline completion
     """
     from hamilton.execution import executors
+    from hamilton.base import DictResult
 
     # Import this module for Hamilton
-    import raw_pv_doi_ingest as pipeline_module
+    import data_loaders.raw_pv_doi_ingest as pipeline_module
 
-    # Create Hamilton driver configuration
+    # Create Hamilton driver configuration following best practices
     config = {
         "database_path": database_path,
         "export_geoparquet": export_geoparquet,
         "use_cache": use_cache,
-        "force_download": force_download
+        "force_download": force_download,
+        "max_mb": max_mb
     }
 
-    if use_parallel:
-        try:
+    # Create Hamilton driver using Builder pattern (recommended approach)
+    print(f"🔧 Creating Hamilton driver with {'parallel' if use_parallel else 'sequential'} execution...")
+
+    try:
+        if use_parallel:
             # Use Builder pattern with V2 executor for parallel processing
+            # This enables Parallelizable and Collect functionality
             builder = (
                 driver.Builder()
                 .enable_dynamic_execution(allow_experimental_mode=True)
@@ -910,41 +1186,59 @@ def run_doi_pipeline(
                 .with_local_executor(executors.SynchronousLocalTaskExecutor())
             )
             dr = builder.build()
-            print("✓ Using Hamilton V2 executor with parallel processing")
+            print("✅ Created Hamilton V2 executor with parallel processing capabilities")
 
-        except Exception as e:
-            print(f"⚠️  Failed to create parallel executor: {e}")
-            print("   Falling back to sequential processing")
-            use_parallel = False
+            # Define target variables for parallel execution
+            final_vars = ["store_individual_datasets"]
 
-    if not use_parallel:
-        # Fallback to standard executor (sequential processing)
-        from hamilton.base import DictResult
+        else:
+            # Use standard driver for sequential processing
+            # This is more stable and easier to debug
+            dr = driver.Builder().with_modules(pipeline_module).with_config(config).build()
+            print("✅ Created Hamilton standard executor for sequential processing")
+            return run_sequential_pipeline(dr, database_path)
+
+    except Exception as builder_error:
+        print(f"❌ Failed to create Hamilton driver: {builder_error}")
+        print("🔄 Falling back to sequential processing with basic driver...")
+
+        # Final fallback to basic driver
         dr = driver.Driver(config, pipeline_module, adapter=DictResult())
-        print("✓ Using Hamilton standard executor (sequential processing)")
+        print("✅ Created basic Hamilton driver (sequential processing)")
         return run_sequential_pipeline(dr, database_path)
 
+    # Execute the Hamilton pipeline
     try:
-        # Define what we want to execute - store individual datasets
-        final_vars = ["store_individual_datasets"]
+        print("🚀 Starting Hamilton DOI pipeline execution...")
+        print(f"   Target variables: {final_vars}")
+        print(f"   Configuration: {config}")
 
-        # Execute the complete pipeline
-        print("Starting Hamilton DOI pipeline...")
+        # Execute the complete pipeline with proper error handling
         results = dr.execute(final_vars)
 
-        # Extract results
+        # Extract and validate results
         stored_tables = results["store_individual_datasets"]
 
+        if not stored_tables:
+            raise ValueError("No datasets were successfully processed and stored")
+
         status_message = f"Successfully stored {len(stored_tables)} datasets individually"
-        print(status_message)
+        print(f"✅ {status_message}")
+
+        # Print detailed results
+        print("📊 Stored datasets:")
+        for dataset_name, table_info in stored_tables.items():
+            print(f"   • {dataset_name}: {table_info}")
 
         # Print summary of raw_data schema
         print_raw_data_summary(database_path)
 
         return status_message
 
-    except Exception as e:
-        print(f"Pipeline failed: {e}")
+    except Exception as pipeline_error:
+        print(f"❌ Hamilton pipeline execution failed: {pipeline_error}")
+        print(f"   Error type: {type(pipeline_error).__name__}")
+        print(f"   Configuration used: {config}")
         raise
 
 
@@ -974,8 +1268,33 @@ def run_sequential_pipeline(
             print(f"\n{'='*80}")
             print(f"Processing dataset: {dataset_name}")
             print(f"{'='*80}")
-            # Process single dataset
-            result = process_single_dataset(dataset_name, metadata)
+            # Process single dataset using the new Hamilton functions
+            # Manually chain the functions for sequential processing
+            download_path = download_doi_dataset(dataset_name, metadata)
+            geospatial_files = extract_geospatial_files(download_path, dataset_name, metadata)
+            processed_gdf = process_geospatial_data(geospatial_files, dataset_name, metadata)
+
+            # Convert to Arrow table
+            print(f"   📝 Converting to Arrow using GeoPandas to_arrow() method")
+            try:
+                geopandas_arrow = processed_gdf.to_arrow(index=False, geometry_encoding='WKB')
+                arrow_table = pa.table(geopandas_arrow)
+                print(f"   ✅ Converted to Arrow table with WKB geometry: {arrow_table.num_rows} rows, {len(arrow_table.columns)} columns")
+            except Exception as arrow_error:
+                print(f"   ❌ Arrow conversion failed: {arrow_error}")
+                print(f"   🔄 Final fallback to manual WKT conversion")
+                arrow_df = processed_gdf.copy()
+                if 'geometry' in arrow_df.columns:
+                    if 'geometry_wkt' not in arrow_df.columns:
+                        arrow_df['geometry_wkt'] = arrow_df['geometry'].to_wkt()
+                    arrow_df = arrow_df.drop(columns=['geometry'])
+                arrow_table = pa.Table.from_pandas(arrow_df, preserve_index=False)
+                print(f"   ✅ Manual WKT conversion successful: {arrow_table.num_rows} rows, {len(arrow_table.columns)} columns")
+
+            # Add dataset name to table metadata
+            metadata_dict = {b'dataset_name': dataset_name.encode('utf-8')}
+            arrow_table = arrow_table.replace_schema_metadata(metadata_dict)
+            result = arrow_table
             processed_tables.append(result)
             print(f"✓ Completed {dataset_name}: {len(result)} records")
         except Exception as e:
@@ -1038,7 +1357,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Run Hamilton DOI dataset pipeline")
-    parser.add_argument("--database", default="./db/eo_pv_data.duckdb",
+    parser.add_argument("--database", default="../db/eo_pv_data.duckdb",
                        help="Path to DuckDB database")
     parser.add_argument("--no-geoparquet", action="store_true",
                        help="Skip GeoParquet export")

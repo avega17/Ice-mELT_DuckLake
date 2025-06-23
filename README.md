@@ -1,6 +1,6 @@
 # ice-mELT DuckLake: EO PV Data Pipeline
 
-A modern data lakehouse pipeline for Earth Observation (EO) photovoltaic (PV) segmentation and energy forecasting research, built on open-source technologies and cloud-native architectures.
+A modern data lakehouse pipeline for Earth Observation (EO) photovoltaic (PV) solar panel segmentation and energy forecasting, built on open-source technologies and cloud-native architectures. This work is developed as part of the methodology for my Computer Science master's thesis at [UPR, Río Piedras](https://natsci.uprrp.edu/ccom/masters/). 
 
 ## 🎯 Project Overview
 
@@ -21,7 +21,7 @@ This project implements a comprehensive data pipeline for processing and analyzi
 
 - **Ice**: Leverages **Iceberg** open table format and **Icechunk** tensor storage engine
 - **mELT**: **Modern** data stack with **Extract-Load-Transform** pipelines ([dbt methodology](https://www.getdbt.com/blog/extract-load-transform))
-- **DuckLake**: Data lakehouse architecture using the new **DuckLake** table format for SQL-based metadata management
+- **DuckLake**: Data lakehouse architecture using the new **DuckLake** [open table and lakehouse format](https://ducklake.select/faq#what-is-ducklake) for SQL-based metadata management
 
 ### Core Technologies
 
@@ -29,7 +29,8 @@ This project implements a comprehensive data pipeline for processing and analyzi
 - **Local filesystem** and **S3-compatible buckets** for data storage
 - **Zarr** data format with **Icechunk** tensor storage engine for rasters
 - **VirtualiZarr** for virtual datasets referencing original imagery from STAC assets
-- **Parquet/GeoParquet** for lakehouse tables and vector data
+- **Apache Parquet/GeoParquet** for lakehouse tables and vector data
+- **Apache Arrow**, an [in-memory columnar format](https://arrow.apache.org/docs/dev/format/Intro.html) that enables [zero-copy shared memory](https://arrow.apache.org/docs/dev/format/Columnar.html) and [RPC-based data movement](https://arrow.apache.org/docs/dev/format/Flight.html) between processes and networked services
 - **COG/GeoTIFF** for raster sources
 
 **Data Lakehouse & Catalogs**
