@@ -45,8 +45,11 @@ connection_string.txt
 datasets/raw/*
 datasets/processed/
 datasets/temp/
-datasets/cache/
-hamilton_download_cache.json
+
+# local Hamilton cache
+*/.hamilton_cache/
+*/.cache/
+.hamilton_cache/
 
 # Database files
 *.duckdb
@@ -145,6 +148,7 @@ venv.bak/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+.jupyter
 
 # IPython
 profile_default/

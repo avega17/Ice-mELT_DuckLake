@@ -12,6 +12,8 @@ tqdm
 
 # Geospatial data processing
 geopandas
+geoarrow-pyarrow
+geoarrow-pandas
 rasterio
 shapely
 pyproj
