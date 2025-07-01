@@ -20,7 +20,7 @@ The era of Big Data hype (2010-2020) promised that massive scale was the solutio
 
 <div align="center">
     <figure>
-        <img src="figures/md_bid_data_workload_size.png" alt="big-data-workload-size" width="40%">
+        <img src="../figures/md_bid_data_workload_size.png" alt="big-data-workload-size" width="40%">
         <figcaption align = "center"> Only 10% of BigQuery queries process more than 100MB of data! </figcaption>
     </figure>
 </div>
@@ -37,7 +37,7 @@ Research labs and small-medium companies primarily deal with **"medium data"** -
 
 <div align="center">
     <figure>
-        <img src="figures/md_stale_data_usage.png" alt="stale-big-data" width="40%">
+        <img src="../figures/md_stale_data_usage.png" alt="stale-big-data" width="40%">
         <figcaption align = "center"> The reality of data usage in most organizations. </figcaption>
     </figure>
 </div>
@@ -103,7 +103,7 @@ While Apache Iceberg pioneered open table formats, it has [practical limitations
 
 <div align="center">
 <figure>
-<img src="figures/iceberg-catalog-architecture.png" alt="iceberg-catalog-architecture" width="50%">
+<img src="../figures/iceberg-catalog-architecture.png" alt="iceberg-catalog-architecture" width="50%">
 <figcaption align = "center"> Iceberg's metadata architecture requires many small files and HTTP requests for even simple queries. </figcaption>
 </figure>
 </div>
@@ -137,7 +137,7 @@ DuckLake addresses these limitations by storing metadata in a transactional SQL 
 
 <div align="center">
 <figure>
-<img src="figures/ducklake-architecture.png" alt="ducklake-architecture" width="50%">
+<img src="../figures/ducklake-architecture.png" alt="ducklake-architecture" width="50%">
 <figcaption align = "center"> DuckLake's architecture leverages a SQL database for metadata management and blob storage for data files. </figcaption>
 </figure>
 </div>
@@ -169,7 +169,7 @@ References:
 
 <div align="center">
     <figure>
-        <img src="figures/zarr_cube_diagram.png" alt="zarr-storage-layout" width="25%">
+        <img src="../figures/zarr_cube_diagram.png" alt="zarr-storage-layout" width="25%">
         <figcaption align = "center"> Zarr's chunked storage layout enables efficient access to subsets of large arrays using relevant spatio-temporal indexing. </figcaption>
     </figure>
 </div>
@@ -201,7 +201,7 @@ References:
 
 <div align="center">
     <figure>
-        <img src="figures/xarray_nd_explained.png" alt="xarray-dim-labels-layout" width="50%">
+        <img src="../figures/xarray_nd_explained.png" alt="xarray-dim-labels-layout" width="50%">
         <figcaption align = "center"> Xarray's labeled dimensions and coordinates enable efficient access to multi-dimensional data. </figcaption>
     </figure>
 </div>
@@ -210,7 +210,7 @@ References:
 
 <div align="center">
     <figure>
-        <img src="figures/unaligned-vs-aligned-data.png" alt="aligned-vs-unaligned" width="50%">
+        <img src="../figures/unaligned-vs-aligned-data.png" alt="aligned-vs-unaligned" width="50%">
         <figcaption align = "center"> Visual diagram of a collection of aligned (cube) vs unaligned (different extents) geospatial datasets. </figcaption>
     </figure>
 </div>
@@ -225,7 +225,7 @@ References:
 
 <div align="center">
     <figure>
-        <img src="figures/stac-data-producers-consumers.png" alt="stac-data-producers-consumers" width="50%">
+        <img src="../figures/stac-data-producers-consumers.png" alt="stac-data-producers-consumers" width="50%">
         <figcaption align = "center"> STAC enables discovery and indexing to both original data producers and downstream consumers. </figcaption>
     </figure>
 </div>
@@ -238,7 +238,7 @@ References:
 
 <div align="center">
     <figure>
-        <img src="figures/zarr_store_diagram.png" alt="zarr-store-layout" width="50%">
+        <img src="../figures/zarr_store_diagram.png" alt="zarr-store-layout" width="50%">
         <figcaption align = "center"> Metadata and raw binary data for a single Zarr store. </figcaption>
     </figure>
 </div>
@@ -275,7 +275,7 @@ References:
 
 <div align="center">
     <figure>
-        <img src="figures/stac+zarr.png" alt="stac+zarr+unaligned" width="50%">
+        <img src="../figures/stac+zarr.png" alt="stac+zarr+unaligned" width="50%">
         <figcaption align = "center"> Example of STAC collection of unaligned satellite imagery with each STAC item pointing to a Zarr store. </figcaption>
     </figure>
 </div>
@@ -336,7 +336,7 @@ This means we can simplify our fundamental cloud scaling architecture to object 
 
 <div align="center">
     <figure>
-        <img src="figures/raw-cloud-architecture.png" alt="raw-cloud-architecture" width="50%">
+        <img src="../figures/raw-cloud-architecture.png" alt="raw-cloud-architecture" width="50%">
         <figcaption align = "center"> An instance of the raw cloud architecture for Ice-mELT pipelines. </figcaption>
     </figure>
 </div>
