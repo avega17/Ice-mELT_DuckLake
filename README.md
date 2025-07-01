@@ -25,7 +25,7 @@ This project implements a comprehensive data pipeline for processing and analyzi
 
 
 
-### Core Technologies
+### Core Technologies and Spatio-Temporal Data
 
 **Storage & Formats**
 - **Local filesystem** and **S3-compatible buckets** for data storage
@@ -35,34 +35,28 @@ This project implements a comprehensive data pipeline for processing and analyzi
 - **Apache Arrow**, an [in-memory columnar format](https://arrow.apache.org/docs/dev/format/Intro.html) that enables [zero-copy shared memory](https://arrow.apache.org/docs/dev/format/Columnar.html) and [RPC-based data movement](https://arrow.apache.org/docs/dev/format/Flight.html) between processes and networked services
 - **COG/GeoTIFF** for raster sources
 
+**Transform & Processing**
+- **Hamilton DAGs** for composable, self-documenting ELT dataflow pipelines
+- **dbt** for Python + SQL model development, lineage, testing
+- **Ibis** Python dataframe API compiling to multiple SQL backends
+- **Xarray** for labeled multi-dimensional arrays
+- **Tensorstore** for performant reading/writing of large ND-arrays
+
+**Query Engines**
+- **Transactional**: PostgreSQL with pgstac, pg_mooncake, cloud via Neon/Supabase
+- **Analytical**: DuckDB (local) + MotherDuck (cloud scaling)
+
 **Data Lakehouse & Catalogs**
 - **DuckLake** - Open lakehouse format using SQL databases for metadata management
 - **Apache Iceberg** open table format for ACID transactions (complementary to DuckLake)
 - **STAC** (SpatioTemporal Asset Catalog) for metadata and asset discovery
 - **H3 spatial indexing** for efficient spatial operations
 
-### 🦆 **Why DuckLake? A Key Architectural Decision**
-
-**DuckLake** addresses fundamental limitations in existing lakehouse formats by storing metadata in a transactional SQL database rather than as "many small files" in object storage. This enables single-query metadata access, reliable ACID transactions, and seamless integration with existing SQL tools.
-
-**Key Benefits for EO Research:**
-- **Fast metadata access** for spatial workloads
-- **Reliable cross-table transactions** for multi-dataset integration
-- **Collaborative research** with consistent concurrent access
-- **Cost-effective scaling** using free tier PostgreSQL for metadata
-
-*For detailed design philosophy and "Big Data is Dead" perspective, see [modern_data_stack.md](modern_data_stack.md)*
-
-**Query Engines**
-- **Transactional**: PostgreSQL with pgstac, pg_mooncake, cloud via Neon/Supabase
-- **Analytical**: DuckDB (local) + MotherDuck (cloud scaling)
-
-**Transform & Processing**
-- **Hamilton DAGs** for composable, self-documenting ELT dataflow pipelines
-- **dbt** for Python + SQL model development, lineage, testing
-- **Ibis** Python dataframe API compiling to multiple SQL backends
-- **Xarray** for labeled multi-dimensional arrays
-- **Tensorstore** for reading/writing large ND-arrays
+**Data Sources**
+- DOI datasets via **datahugger**
+- STAC assets for satellite imagery
+- **Overture Maps** for admin boundaries, building footprints, land cover
+- **Google Solar API** and **NREL NSRDB** for irradiance data
 
 ### 🔄 **Hamilton Dataflows: The Modern Pipeline Approach**
 
@@ -79,36 +73,9 @@ Our pipeline architecture leverages **Hamilton** for function-based DAG dataflow
 
 *For detailed insights on modern data stack integration, see [docs/DAGs_and_Composable_Data.md](docs/DAGs_and_Composable_Data.md) and [docs/hamilton_best_practices.ipynb](docs/hamilton_best_practices.ipynb)*
 
-**Data Sources**
-- DOI datasets via **datahugger**
-- STAC assets for satellite imagery
-- **Overture Maps** for admin boundaries, building footprints, land cover
-- **Google Solar API** and **NREL NSRDB** for irradiance data
+#### 🚀 Implemented Pipeline Features
 
-## 📊 Current State
-
-### ✅ Completed
-- **Hamilton dataflow pipeline** for DOI PV vector datasets
-  - 6+ global DOI datasets processed (~360K+ PV installations)
-  - Parallel/sequential execution modes with intelligent caching
-  - File filtering system using regex patterns from manifest
-  - Hybrid GeoArrow/WKB approach for optimal spatial processing
-  - DuckDB storage with spatial extensions + GeoParquet export
-- **Modern data stack integration**
-  - Hamilton DAGs for composable, self-documenting pipelines
-  - dbt project structure with staging/prepared/curated layers
-  - DuckDB + dbt-duckdb integration with spatial extensions
-  - Apache Arrow for zero-copy data exchange
-- **Development environment** with conda, extensions, and comprehensive testing
-
-### 🔄 In Progress
-- dbt Python + SQL models for data transformations
-- STAC catalog integration for satellite imagery
-- Spatial processing utilities (H3 indexing, admin boundaries)
-
-## 🚀 Pipeline Features
-
-### DOI PV Locations Dataflow (`dataflows/doi_pv_locations.py`)
+##### DOI PV Locations Dataflow (`dataflows/doi_pv_locations.py`)
 
 **Core Capabilities:**
 - **Multi-source ingestion**: Supports DOI repositories (Zenodo, Figshare, ScienceBase) and GitHub
@@ -125,11 +92,55 @@ GeoArrow Conversion → DuckDB Storage (WKB) + GeoParquet Export (GeoArrow)
 ```
 
 **Current Datasets Processed:**
-- UK Crowdsourced PV 2020: ~265K installations
-- China PV 2024: ~3.4K installations
-- USA California USGS PV 2016: ~19K installations
-- Global PV Inventory 2021: ~50K installations
-- *Total: ~360K+ PV installations across 4 active datasets*
+- doi_uk_crowdsourced_pv_2020: 265,406 records
+- doi_chn_med_res_pv_2024: 1,852 records
+- doi_usa_cali_usgs_pv_2016: 19,433 records
+- doi_ind_pv_solar_farms_2022: 1,363 records
+- doi_global_pv_inventory_sent2_spot_2021: 36,882 records
+- doi_global_harmonized_large_solar_farms_2020: 35,272 records
+- *Total: ~360K+ PV installations across 6 active datasets* 
+
+### 🦆 **Why DuckLake? A Key Architectural Decision**
+
+**DuckLake** addresses fundamental limitations in existing lakehouse formats by storing metadata in a transactional SQL database rather than as "many small files" in object storage. This enables single-query metadata access, reliable ACID transactions, and seamless integration with existing tools and decades of DBMS advances since at it's core it simply **builds on SQL and Parquet**. A key DuckLake contribution to the data lakehouse architecture is is adding another dimmension to scale: Storage, compute, AND metadata can all scale independently.
+
+> *DuckLake re-imagines what a “Lakehouse” format should look like by acknowledging two simple truths:*  
+> *1. Storing data files in open formats on blob storage is a great idea for scalability and to prevent [cloud and data vendor] lock-in.*  
+> *2. Managing metadata is a complex and interconnected data management task best left to a database management system.*  
+
+-- [The DuckLake Manifesto: SQL as a Lakehouse Format](https://ducklake.select/manifesto/#ducklake)
+
+#### Key Benefits for EO Research:
+- **Fast metadata access** for spatial workloads
+- **Reliable cross-table transactions** for multi-dataset integration
+- **Collaborative research** with consistent concurrent access
+- **Cost-effective scaling** using free tier PostgreSQL for metadata
+
+*For more details on design philosophy and "Big Data is Dead" perspective, see [modern_data_stack.md](docs/modern_data_stack.md)*
+
+## 📊 Current State
+
+### ✅ Completed
+- **Hamilton dataflow pipeline** for DOI PV vector datasets
+  - 6+ global DOI datasets processed (~360K+ PV installations)
+  - Parallel/sequential execution modes with intelligent caching
+  - File filtering system using regex patterns from manifest
+  - Hybrid GeoArrow/WKB approach for optimal spatial processing
+  - DuckDB storage with spatial extensions + GeoParquet export
+- **Modern data stack integration**
+  - Hamilton DAGs for composable, self-documenting pipelines
+  - dbt project structure with staging/prepared/curated layers
+  - DuckDB + dbt-duckdb integration with spatial extensions
+  - Apache Arrow for zero-copy data exchange
+- **Development environment** with conda, extensions, and comprehensive testing
+  - [Future] Migrate dependencies to [uv, a python package manager](https://www.datacamp.com/tutorial/python-uv) [implemented in rust](https://www.saaspegasus.com/guides/uv-deep-dive/#why-use-uv) (see [pros and cons](https://www.bitecode.dev/p/a-year-of-uv-pros-cons-and-should))
+
+### 🔄 In Progress
+- dbt Python + SQL models for data transformations
+- STAC catalog integration for satellite imagery
+- Spatial processing utilities (H3 indexing, admin boundaries)
+
+
 
 ## 🗺️ Roadmap
 
@@ -138,7 +149,8 @@ GeoArrow Conversion → DuckDB Storage (WKB) + GeoParquet Export (GeoArrow)
 - [x] **File filtering system**: Regex-based filtering from manifest configuration
 - [x] **Hybrid GeoArrow/WKB approach**: Optimal spatial processing with DuckDB compatibility
 - [x] **Comprehensive caching**: Hamilton built-in caching with intelligent invalidation
-- [ ] **Hamilton dataflow**: STAC catalogs and conversion to GeoParquet
+- [ ] **Loading results of ingestion dataflow as dbt sources for raw data layer**
+- [ ] **Hamilton dataflow**: STAC catalog sourcing and conversion to static GeoParquet for efficient (compressed) storage and analytics
 - [ ] **Initial dbt models**: Python + SQL transformations leveraging Hamilton outputs
 
 ### Phase 2: STAC & Raster Integration
