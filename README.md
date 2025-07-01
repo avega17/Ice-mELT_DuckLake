@@ -310,7 +310,7 @@ This is a research project for MS thesis work. The pipeline architecture and met
 
 ## 📄 License
 
-TBA FOSS
+MIT License
 
 ---
 
