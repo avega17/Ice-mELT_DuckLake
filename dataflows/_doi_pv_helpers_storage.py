@@ -75,19 +75,27 @@ def _apply_file_filters(files: List[Path], file_filters: Dict[str, Any]) -> List
     return filtered_files
 
 
-def _geoarrow_table(gdf: gpd.GeoDataFrame, dataset_name: str) -> pa.Table:
+def _geoarrow_table(gdf: gpd.GeoDataFrame, dataset_name: str):
     """
-    Convert GeoDataFrame to Arrow table with proper GeoArrow encoding.
+    Convert GeoDataFrame to Arrow table with proper GeoArrow encoding using geoarrow-rs.
 
-    Uses geoarrow.pyarrow when available for best compatibility, falls back to
-    GeoPandas native to_arrow() with appropriate encoding based on geometry types.
+    Uses geoarrow-rs (Rust implementation) for efficient spatial operations and
+    better GeoArrow support with direct from_geopandas() conversion.
+
+    Adds dataset_name metadata using native arro3 methods for single geometry types
+    or PyArrow methods for mixed geometry types (WKB fallback).
+
+    References:
+    - https://geoarrow.org/geoarrow-rs/python/v0.4.0-beta.3/ecosystem/geopandas/
+    - https://kylebarron.dev/arro3/v0.5.1/api/core/table/
+    - https://kylebarron.dev/arro3/v0.5.1/api/core/schema/
 
     Args:
         gdf: GeoDataFrame to convert
-        dataset_name: Name of the dataset for metadata
+        dataset_name: Name of the dataset (added to table metadata)
 
     Returns:
-        PyArrow table with proper geometry encoding for efficient spatial operations
+        Arrow table with dataset_name metadata (arro3.core.Table or PyArrow table)
     """
     if gdf.empty:
         return pa.table({
@@ -97,26 +105,44 @@ def _geoarrow_table(gdf: gpd.GeoDataFrame, dataset_name: str) -> pa.Table:
 
     gdf_copy = gdf.copy()
 
-    # Import geoarrow to register extension types with GeoPandas
-    import geoarrow.pyarrow as _  # noqa: F401
+    # Import geoarrow-rs for efficient conversion
+    from geoarrow.rust.core import from_geopandas
 
-    # Check for mixed geometry types which cause GeoArrow encoding issues
+    # Check for mixed geometry types which may need special handling
     geom_types = set(gdf_copy.geometry.geom_type.unique())
     has_mixed_geom_types = len(geom_types) > 1
 
-    if has_mixed_geom_types:
-        print(f"   ⚠️  Mixed geometry types detected {geom_types}, using WKB encoding")
-        # Use WKB for mixed geometry types to avoid GeoArrow encoding issues
-        table = pa.table(gdf_copy.to_arrow(index=False, geometry_encoding='WKB'))
-        print(f"   ✅ Converted {len(gdf_copy)} features using WKB for mixed geometries")
-    else:
-        # Single geometry type - use geoarrow extension types
-        table = pa.table(gdf_copy.to_arrow(index=False))
-        print(f"   ✅ Converted {len(gdf_copy)} features using geoarrow extension types")
+    try:
+        if has_mixed_geom_types:
+            print(f"   ⚠️  Mixed geometry types detected {geom_types}, using WKB fallback")
+            # For mixed geometries, use WKB encoding as fallback
+            table = pa.table(gdf_copy.to_arrow(index=False, geometry_encoding='WKB'))
+            print(f"   ✅ Converted {len(gdf_copy)} features using WKB for mixed geometries")
 
-    # Add dataset metadata
-    metadata = {"dataset_name": dataset_name}
-    table = table.replace_schema_metadata(metadata)
+            # Add dataset metadata (PyArrow table)
+            metadata = {"dataset_name": dataset_name}
+            table = table.replace_schema_metadata(metadata)
+
+        else:
+            # Use geoarrow-rs for efficient conversion with native GeoArrow types
+            arro3_table = from_geopandas(gdf_copy)
+            print(f"   ✅ Converted {len(gdf_copy)} features using geoarrow-rs native types")
+
+            # Add dataset metadata using arro3 native methods
+            # Reference: https://kylebarron.dev/arro3/v0.5.1/api/core/schema/
+            metadata = {"dataset_name": dataset_name}
+            schema_with_metadata = arro3_table.schema.with_metadata(metadata)
+            table = arro3_table.with_schema(schema_with_metadata)
+
+    except Exception as e:
+        print(f"   ⚠️  geoarrow-rs conversion failed: {e}, falling back to WKB")
+        # Fallback to WKB encoding if geoarrow-rs fails
+        table = pa.table(gdf_copy.to_arrow(index=False, geometry_encoding='WKB'))
+        print(f"   ✅ Converted {len(gdf_copy)} features using WKB fallback")
+
+        # Add dataset metadata (PyArrow table)
+        metadata = {"dataset_name": dataset_name}
+        table = table.replace_schema_metadata(metadata)
 
     return table
 
@@ -127,10 +153,12 @@ def _duckdb_table_from_geoarrow(
     table_name: str
 ) -> int:
     """
-    Create DuckDB table from GeoArrow table using proper geoarrow conversion.
+    Create DuckDB table from GeoArrow table using geoarrow-rs conversion.
 
-    Uses geoarrow.pyarrow to properly convert Arrow tables with geometry data
+    Uses geoarrow-rs to_geopandas() to properly convert Arrow tables with geometry data
     back to GeoPandas, preserving CRS and geometry information.
+
+    Reference: https://geoarrow.org/geoarrow-rs/python/v0.4.0-beta.3/ecosystem/geopandas/
 
     Args:
         conn: DuckDB connection
@@ -146,17 +174,19 @@ def _duckdb_table_from_geoarrow(
     print(f"   🔄 Converting Arrow table back to GeoPandas for DuckDB import")
 
     try:
-        # Convert using geoarrow which preserves geometry information
-        import geoarrow.pyarrow as ga
-        gdf = ga.to_geopandas(arrow_table)
-        print(f"   ✅ GeoArrow conversion successful: {len(gdf)} rows, CRS: {gdf.crs}")
+        # Convert using geoarrow-rs which preserves geometry information
+        from geoarrow.rust.core import to_geopandas
+        gdf = to_geopandas(arrow_table)
+        # Use short CRS representation instead of verbose PROJ JSON
+        crs_name = gdf.crs.to_string() if gdf.crs else "None"
+        print(f"   ✅ geoarrow-rs conversion successful: {len(gdf)} rows, CRS: {crs_name}")
 
         # Handle DuckDB table creation - DuckDB doesn't support geoarrow extension types
         if isinstance(gdf, gpd.GeoDataFrame) and hasattr(gdf, 'geometry') and gdf.geometry is not None:
             # Set CRS if missing
             if gdf.crs is None:
                 gdf = gdf.set_crs('EPSG:4326', allow_override=True)
-            print(f"   ✅ GeoDataFrame with {len(gdf)} rows, CRS: {gdf.crs}")
+            print(f"   ✅ GeoDataFrame with {len(gdf)} rows, CRS: {gdf.crs.to_string()}")
 
             # Convert geometry to WKB for DuckDB compatibility
             print(f"   🔄 Converting geometry to WKB for DuckDB")
@@ -196,10 +226,12 @@ def _geoparquet_export(
     output_dir: Path
 ) -> str:
     """
-    Export Arrow table to GeoParquet format.
+    Export Arrow table to GeoParquet format using geoarrow-rs I/O.
 
-    Uses original GeoArrow table for optimal GeoParquet export when possible,
-    falls back to WKB conversion if needed.
+    Uses geoarrow-rs for optimal GeoParquet export with native GeoArrow support.
+    Falls back to GeoPandas conversion if needed.
+
+    Reference: https://geoarrow.org/geoarrow-rs/python/v0.4.0-beta.3/api/io/geoparquet/
 
     Args:
         arrow_table: Arrow table to export
@@ -212,26 +244,40 @@ def _geoparquet_export(
     parquet_file = output_dir / f"doi_{dataset_name}.parquet"
 
     try:
-        # Try direct GeoArrow to GeoParquet (most efficient)
-        df = arrow_table.to_pandas()
-        if hasattr(df, 'geometry') and hasattr(df.geometry, 'to_parquet'):
-            df.to_parquet(parquet_file)
-            print(f"   ✅ Exported {dataset_name} to GeoParquet using GeoArrow format")
-        else:
-            # Fallback: convert geometry from WKB if needed
+        # Try geoarrow-rs direct GeoParquet export (most efficient)
+        from geoarrow.rust.io import write_parquet
+
+        # Use geoarrow-rs to write GeoParquet directly
+        # Note: write_parquet should handle both PyArrow and arro3 tables
+        write_parquet(arrow_table, str(parquet_file))
+        print(f"   ✅ Exported {dataset_name} to GeoParquet using geoarrow-rs I/O")
+
+    except Exception as geoarrow_error:
+        print(f"   ⚠️  geoarrow-rs export failed: {geoarrow_error}, trying GeoPandas fallback")
+
+        try:
+            # Fallback: convert to GeoPandas and export
+            from geoarrow.rust.core import to_geopandas
+            gdf = to_geopandas(arrow_table)
+            gdf.to_parquet(parquet_file)
+            print(f"   ✅ Exported {dataset_name} to GeoParquet using GeoPandas fallback")
+
+        except Exception as fallback_error:
+            print(f"   ⚠️  GeoPandas fallback also failed: {fallback_error}")
+
+            # Final fallback: manual WKB conversion
+            df = arrow_table.to_pandas()
             geometry_columns = [col for col in df.columns if 'geometry' in col.lower()]
             if geometry_columns:
                 geom_col = geometry_columns[0]
                 df[geom_col] = gpd.GeoSeries.from_wkb(df[geom_col])
-            gdf = gpd.GeoDataFrame(df, geometry=geom_col if geometry_columns else None)
-            gdf.to_parquet(parquet_file)
-            print(f"   ✅ Exported {dataset_name} to GeoParquet using WKB conversion")
+                gdf = gpd.GeoDataFrame(df, geometry=geom_col)
+                gdf.to_parquet(parquet_file)
+                print(f"   ✅ Exported {dataset_name} to GeoParquet using WKB conversion")
+            else:
+                raise ValueError(f"No geometry column found for {dataset_name}")
 
-        return str(parquet_file)
-
-    except Exception as e:
-        print(f"   ⚠️  GeoParquet export failed for {dataset_name}: {e}")
-        raise
+    return str(parquet_file)
 
 
 def _storage_result(

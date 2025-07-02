@@ -88,7 +88,7 @@ Our pipeline architecture leverages **Hamilton** for function-based DAG dataflow
 **Processing Pipeline:**
 ```
 DOI Metadata → Parallel Download → File Filtering → GeoPandas Loading →
-GeoArrow Conversion → DuckDB Storage (WKB) + GeoParquet Export (GeoArrow)
+GeoArrow-RS Conversion → DuckDB Storage + GeoParquet Export (native I/O)
 ```
 
 **Current Datasets Processed:**
@@ -125,7 +125,7 @@ GeoArrow Conversion → DuckDB Storage (WKB) + GeoParquet Export (GeoArrow)
   - 6+ global DOI datasets processed (~360K+ PV installations)
   - Parallel/sequential execution modes with intelligent caching
   - File filtering system using regex patterns from manifest
-  - Hybrid GeoArrow/WKB approach for optimal spatial processing
+  - GeoArrow-RS integration for efficient spatial operations with native I/O
   - DuckDB storage with spatial extensions + GeoParquet export
 - **Modern data stack integration**
   - Hamilton DAGs for composable, self-documenting pipelines
@@ -147,7 +147,7 @@ GeoArrow Conversion → DuckDB Storage (WKB) + GeoParquet Export (GeoArrow)
 ### Phase 1: Core Data Pipeline ✅
 - [x] **Hamilton dataflow implementation**: DOI PV datasets with parallel/sequential modes
 - [x] **File filtering system**: Regex-based filtering from manifest configuration
-- [x] **Hybrid GeoArrow/WKB approach**: Optimal spatial processing with DuckDB compatibility
+- [x] **GeoArrow-RS integration**: Rust-based spatial operations with native from_geopandas()/to_geopandas() and I/O
 - [x] **Comprehensive caching**: Hamilton built-in caching with intelligent invalidation
 - [ ] **Loading results of ingestion dataflow as dbt sources for raw data layer**
 - [ ] **Hamilton dataflow**: STAC catalog sourcing and conversion to static GeoParquet for efficient (compressed) storage and analytics

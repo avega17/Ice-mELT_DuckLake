@@ -123,7 +123,7 @@ DuckLake addresses these limitations by storing metadata in a transactional SQL 
 <div align="center">
     <figure>
         <img src="../figures/dbms_are_good_actually.png" alt="DuckLake as Mike Ermantraut" width="60%">
-        <figcaption align = "center"> <a href="https://dataengineeringcentral.substack.com/p/oh-yeah-ducklake"> “The basic design of DuckLake is to <strong>move all metadata structures into a SQL database</strong>.” </a> </figcaption>
+        <figcaption align = "center"> <a href="https://dataengineeringcentral.substack.com/i/165014999/oh-yeah-ducklake"> “The basic design of DuckLake is to <strong>move all metadata structures into a SQL database</strong>.” </a> </figcaption>
     </figure>
 </div>
 

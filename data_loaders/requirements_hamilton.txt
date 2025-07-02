@@ -12,8 +12,7 @@ tqdm
 
 # Geospatial data processing
 geopandas
-geoarrow-pyarrow
-geoarrow-pandas
+geoarrow-rs  # Rust implementation with better performance and I/O support
 rasterio
 shapely
 pyproj

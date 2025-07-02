@@ -13,10 +13,22 @@ Usage:
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 import importlib.util
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Get repo root from environment or use defaults
+REPO_ROOT = os.getenv('REPO_ROOT', str(Path(__file__).parent.parent))
+DEFAULT_CONFIG_PATH = os.path.join(REPO_ROOT, "data_loaders", "hamilton_viz_config.json")
+
+# Add repo root to Python path for dataflows import
+sys.path.insert(0, REPO_ROOT)
 
 
 def load_config_file(config_path: str, pipeline_key: Optional[str] = None) -> Dict[str, Any]:
@@ -390,7 +402,8 @@ Examples:
     # Configuration
     parser.add_argument(
         "--config", "-c",
-        help="Path to JSON configuration file for Hamilton driver"
+        default=DEFAULT_CONFIG_PATH,
+        help=f"Path to JSON configuration file for Hamilton driver (default: {DEFAULT_CONFIG_PATH})"
     )
 
     parser.add_argument(
@@ -473,8 +486,9 @@ Examples:
 
     # Handle list pipelines request
     if args.list_pipelines:
-        if not args.config:
-            print("❌ --config file required to list pipelines")
+        if not args.config or not Path(args.config).exists():
+            print(f"❌ Config file not found: {args.config}")
+            print("   Create a config file or specify a different path with --config")
             sys.exit(1)
         full_config = load_config_file(args.config)
         list_available_pipelines(full_config)
@@ -487,6 +501,10 @@ Examples:
 
     if args.config and args.pipeline:
         # Pipeline-based configuration
+        if not Path(args.config).exists():
+            print(f"❌ Config file not found: {args.config}")
+            print("   Create a config file or specify a different path with --config")
+            sys.exit(1)
         pipeline_config = load_config_file(args.config, args.pipeline)
 
         if 'module' in pipeline_config:
@@ -503,7 +521,12 @@ Examples:
 
     elif args.config:
         # Direct config file
-        config = load_config_file(args.config)
+        if Path(args.config).exists():
+            config = load_config_file(args.config)
+        else:
+            print(f"ℹ️  Config file not found: {args.config}")
+            print("   Using empty config - specify module with --module")
+            config = {}
     elif args.config_json:
         # JSON string config
         try:

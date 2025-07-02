@@ -21,7 +21,7 @@ def test_hamilton_driver_creation():
         # Test sequential mode
         config_sequential = {
             "database_path": ":memory:",
-            "manifest_path": "doi_manifest.json",
+            "manifest_path": "data_loaders/doi_manifest.json",
             "max_mb": 10,
             "export_geoparquet": False,
             "force_download": False,
@@ -32,7 +32,7 @@ def test_hamilton_driver_creation():
         # Test parallel mode
         config_parallel = {
             "database_path": ":memory:",
-            "manifest_path": "doi_manifest.json",
+            "manifest_path": "data_loaders/doi_manifest.json",
             "max_mb": 10,
             "export_geoparquet": False,
             "force_download": False,
@@ -103,7 +103,7 @@ def test_basic_functionality():
 
         config_sequential = {
             "database_path": ":memory:",
-            "manifest_path": "doi_manifest.json",
+            "manifest_path": "data_loaders/doi_manifest.json",
             "cache_path": "./test_cache",
             "execution_mode": "sequential"
         }

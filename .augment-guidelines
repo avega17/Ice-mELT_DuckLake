@@ -22,15 +22,15 @@ Data Sources
     * STAC assets for satellite imagery 
     * Overture Maps for global admin boundaries, building footprints, and land cover
     * Irradiance data from Google’s Solar API and NREL’s National Solar Radiation Database
-Loading
-    * dlt for data loading and ingestion
-    * raw sources standardized to (Geo)Parquet
+Data Ingestion
+    * Hamilton dataflows for loading and processing raw data
+    * raw sources standardized to (Geo)Parquet and loaded as dbt sources
 Query
     * Transactional: PostgreSQL
         * Lakehouse Catalog
         * pgstac for querying STAC collections
         * pg_mooncake enables exporting and loading native pg tables as Iceberg tables
-        * cloud via Neon or Supabase free tier
+        * cloud via Neon serverless free tier
     * Analytical: DuckDB
         * for local processing and MotherDuck for cloud-scaling
 Transport:

@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import tempfile
 import shutil
+import os
 from pathlib import Path
 from typing import Dict, Any, List
 
@@ -24,9 +25,17 @@ import geopandas as gpd
 import pyarrow as pa
 import duckdb
 import datahugger
+from dotenv import load_dotenv
 
-# Simple import - let it fail if not available
-import geoarrow.pandas as _  # Register geoarrow accessor
+# Import geoarrow-rs for efficient spatial operations
+import geoarrow.rust.core as geoarrow
+
+# Load environment variables
+load_dotenv()
+
+# Get repo root and manifest path from environment or use defaults
+REPO_ROOT = os.getenv('REPO_ROOT', str(Path(__file__).parent.parent))
+INGEST_METADATA = os.getenv('INGEST_METADATA', os.path.join(REPO_ROOT, "data_loaders", "doi_manifest.json"))
 
 from hamilton.function_modifiers import cache, tag, config
 
@@ -51,15 +60,16 @@ from ._doi_pv_helpers_storage import (
 
 @cache(behavior="recompute")  # Always reload to catch manifest updates
 @tag(stage="metadata", data_type="config")
-def doi_metadata(manifest_path: str = "data_loaders/doi_manifest.json") -> Dict[str, Dict[str, Any]]:
+def doi_metadata(manifest_path: str = None) -> Dict[str, Dict[str, Any]]:
     """Load DOI dataset metadata from manifest file."""
+    # Use environment variable or default
+    if manifest_path is None:
+        manifest_path = INGEST_METADATA
+
     manifest_file = Path(manifest_path)
-    if not manifest_file.is_absolute():
-        manifest_file = Path.cwd() / manifest_path
-    
     if not manifest_file.exists():
         raise FileNotFoundError(f"DOI manifest not found: {manifest_file}")
-    
+
     with open(manifest_file, 'r') as f:
         return json.load(f)
 

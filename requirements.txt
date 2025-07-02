@@ -10,8 +10,7 @@ earthengine-api
 folium
 fsspec
 gdal
-geoarrow-pyarrow
-geoarrow-pandas
+geoarrow-rs  # Rust implementation with better performance and I/O support
 geopandas
 geodatasets
 geopy

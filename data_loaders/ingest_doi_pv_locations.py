@@ -14,8 +14,22 @@ Usage:
 from hamilton import driver
 from hamilton.execution import executors
 
-# Import the Hamilton dataflow module
-import dataflows.doi_pv_locations as doi_pv_locations
+# Add parent directory to path to import dataflows
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import os
+from dotenv import load_dotenv
+
+from dataflows import doi_pv_locations
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Get repo root and manifest path from environment or use defaults
+REPO_ROOT = os.getenv('REPO_ROOT', str(Path(__file__).parent.parent))
+INGEST_METADATA = os.getenv('INGEST_METADATA', str(Path(__file__).parent / "doi_manifest.json"))
 
 
 def create_hamilton_driver(
@@ -69,8 +83,8 @@ def create_hamilton_driver(
 
 
 def run_doi_pv_pipeline(
-    database_path: str = "../db/eo_pv_data.duckdb",
-    manifest_path: str = "doi_manifest.json",
+    database_path: str = None,
+    manifest_path: str = None,
     max_mb: int = 250,
     export_geoparquet: bool = True,
     enable_caching: bool = True,
@@ -94,6 +108,17 @@ def run_doi_pv_pipeline(
     Returns:
         dict: Pipeline execution results
     """
+    # Use environment variables or defaults for paths
+    if database_path is None:
+        database_path = os.path.join(REPO_ROOT, "db", "eo_pv_data.duckdb")
+
+    if manifest_path is None:
+        manifest_path = INGEST_METADATA
+
+    # Verify manifest file exists
+    if not Path(manifest_path).exists():
+        raise FileNotFoundError(f"DOI manifest not found: {manifest_path}")
+
     # Create configuration with execution mode
     config = {
         "database_path": database_path,
@@ -124,8 +149,8 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description="DOI PV Locations Ingestion Pipeline")
-    parser.add_argument("--database", default="../db/eo_pv_data.duckdb", help="DuckDB database path")
-    parser.add_argument("--manifest", default="doi_manifest.json", help="DOI manifest file")
+    parser.add_argument("--database", default=None, help=f"DuckDB database path (default: {os.path.join(REPO_ROOT, 'db', 'eo_pv_data.duckdb')})")
+    parser.add_argument("--manifest", default=None, help=f"DOI manifest file (default: {INGEST_METADATA})")
     parser.add_argument("--max-mb", type=int, default=250, help="Max download size in MB")
     parser.add_argument("--no-geoparquet", action="store_true", help="Skip GeoParquet export")
     parser.add_argument("--no-cache", action="store_true", help="Disable Hamilton caching")
