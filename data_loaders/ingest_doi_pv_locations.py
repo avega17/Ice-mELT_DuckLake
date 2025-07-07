@@ -28,8 +28,9 @@ from dataflows import doi_pv_locations
 load_dotenv()
 
 # Get repo root and manifest path from environment or use defaults
-REPO_ROOT = os.getenv('REPO_ROOT', str(Path(__file__).parent.parent))
-INGEST_METADATA = os.getenv('INGEST_METADATA', str(Path(__file__).parent / "doi_manifest.json"))
+# Use relative paths as they work better than absolute paths in this environment
+REPO_ROOT = str(Path(__file__).parent.parent)
+INGEST_METADATA = str(Path(__file__).parent / "doi_manifest.json")
 
 
 def create_hamilton_driver(
@@ -85,7 +86,7 @@ def create_hamilton_driver(
 def run_doi_pv_pipeline(
     database_path: str = None,
     manifest_path: str = None,
-    max_mb: int = 250,
+    max_mb: int = 300,
     export_geoparquet: bool = True,
     enable_caching: bool = True,
     force_download: bool = False,
@@ -151,7 +152,7 @@ def main():
     parser = argparse.ArgumentParser(description="DOI PV Locations Ingestion Pipeline")
     parser.add_argument("--database", default=None, help=f"DuckDB database path (default: {os.path.join(REPO_ROOT, 'db', 'eo_pv_data.duckdb')})")
     parser.add_argument("--manifest", default=None, help=f"DOI manifest file (default: {INGEST_METADATA})")
-    parser.add_argument("--max-mb", type=int, default=250, help="Max download size in MB")
+    parser.add_argument("--max-mb", type=int, default=300, help="Max download size in MB")
     parser.add_argument("--no-geoparquet", action="store_true", help="Skip GeoParquet export")
     parser.add_argument("--no-cache", action="store_true", help="Disable Hamilton caching")
     parser.add_argument("--force-download", action="store_true", help="Force re-download")

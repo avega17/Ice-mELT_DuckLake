@@ -8,6 +8,9 @@ config-version: 2
 # This setting configures which "profile" dbt uses for this project.
 profile: 'eo_pv_pipeline'
 
+# dbt-cloud:
+#     project-id: 70471823477636
+
 # These configurations specify where dbt should look for different types of files.
 model-paths: ["models"]
 analysis-paths: ["analyses"]
@@ -28,41 +31,30 @@ models:
     staging:
       +materialized: table
       +schema: staging
-      # Use DuckDB-specific optimizations
-      +file_format: parquet
-      +compression: snappy
 
     # Prepared models - business logic transformations and data preparation
     prepared:
       +materialized: table
       +schema: prepared
-      +file_format: parquet
-      +compression: snappy
 
       # Overture Maps models should be views only to minimize storage
       prep_overture_countries:
-        +materialized: view
+        +materialized: table
       prep_country_h3_decomposition:
         +materialized: view
 
-      # Large spatial models can use Iceberg for better performance
+      # Large spatial models can use table materialization
       prep_pv_with_admin_boundaries:
         +materialized: table
-        +file_format: iceberg
-        +partition_by:
-          - dataset_name
 
     # Curated models - final analytical datasets
     curated:
       +materialized: table
       +schema: curated
-      +file_format: parquet
-      +compression: snappy
 
       # Summary models can be smaller tables
       curated_pv_dataset_summary:
         +materialized: table
-        +file_format: parquet
 
 # Seed configurations
 seeds:
@@ -99,11 +91,15 @@ vars:
   use_native_geometry: true  # Use DuckDB spatial extension instead of WKT
   enable_spatial_index: true # Enable spatial indexing for performance
 
+
+# Note: Sources are properly configured in models/sources.yml
+# DuckDB-specific source configurations can be added here if needed
+
 # DuckDB-specific configurations
 on-run-start:
   - "INSTALL spatial"
   - "LOAD spatial"
-  - "INSTALL h3"
+  - "INSTALL h3 FROM community"
   - "LOAD h3"
-  - "INSTALL arrow"
-  - "LOAD arrow"
+  - "INSTALL geography FROM community"
+  - "LOAD geography"

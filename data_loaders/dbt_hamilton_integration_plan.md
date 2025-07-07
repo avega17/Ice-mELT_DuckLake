@@ -43,7 +43,7 @@ def model(dbt, session):
     dbt Python model that uses Hamilton for complex data loading.
     """
     # Hamilton driver for data loading
-    config = {"use_cache": True, "max_mb": 250}
+    config = {"use_cache": True, "max_mb": 300}
     dr = driver.Builder().with_modules(
         data_sources, transformations
     ).with_config(config).build()
@@ -177,7 +177,7 @@ models:
 vars:
   hamilton_config:
     use_cache: true
-    max_mb: 250
+    max_mb: 300
     database_path: "{{ target.path }}/eo_pv_data.duckdb"
 ```
 
@@ -206,17 +206,15 @@ vars:
 
 ## Next Steps
 
-1. **Create dbt Python Model Templates** (Immediate)
+1. **Create dbt Python Model Templates**
 2. **Implement Basic Integration Test** (This Week)
-3. **Refactor First Staging Model** (Next Sprint)
-4. **Document Integration Patterns** (Ongoing)
+3. **Document Integration Patterns** (Ongoing)
 
 ## Resources
 
 - [Hamilton dbt Integration Guide](https://medium.com/data-science/hamilton-dbt-in-5-minutes-62e4cb63f08f)
 - [dbt Python Models Documentation](https://docs.getdbt.com/docs/build/python-models)
 - [Hamilton Best Practices](https://hamilton.dagworks.io/en/latest/concepts/best-practices/)
-- [Our Refactored Hamilton Modules](./hamilton_modules/)
 
 ---
 

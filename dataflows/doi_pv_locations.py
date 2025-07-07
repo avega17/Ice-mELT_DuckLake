@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Dict, Any, List
 
 import geopandas as gpd
+import pandas as pd
 import pyarrow as pa
 import duckdb
 import datahugger
@@ -119,7 +120,7 @@ def dataset_names__sequential(doi_metadata: Dict[str, Dict[str, Any]]) -> List[s
 def dataset_download_path__parallel(
     dataset_names: str,  # Individual dataset name from parallel processing
     doi_metadata: Dict[str, Dict[str, Any]],
-    max_mb: int = 250
+    max_mb: int = 300
 ) -> str:
     """Download individual dataset and return path."""
     metadata = doi_metadata[dataset_names]
@@ -177,7 +178,7 @@ def dataset_download_path__parallel(
 def dataset_download_path__sequential(
     dataset_names: List[str],  # Not used in sequential mode
     doi_metadata: Dict[str, Dict[str, Any]],
-    max_mb: int = 250
+    max_mb: int = 300
 ) -> str:
     """Placeholder for sequential mode - actual processing happens in collected_arrow_tables__sequential."""
     # This is a placeholder since sequential processing happens all at once
@@ -220,16 +221,54 @@ def processed_geodataframe__parallel(
     for f in geo_files:
         print(f"      - {f.name} ({f.stat().st_size / 1024:.1f} KB)")
 
-    # Load the largest geospatial file
-    main_file = max(geo_files, key=lambda f: f.stat().st_size)
-    print(f"   📄 Processing main file: {main_file.name}")
+    # Process all filtered files and concatenate them
+    gdfs = []
+    total_records = 0
 
-    # Load with geopandas - keep original schema
-    gdf = gpd.read_file(main_file)
+    for geo_file in geo_files:
+        print(f"   📄 Processing file: {geo_file.name}")
+        try:
+            # Load with geopandas - keep original schema
+            file_gdf = gpd.read_file(geo_file)
 
-    # Only add essential metadata columns
-    gdf['dataset_name'] = dataset_names
-    gdf['source_file'] = str(main_file.name)
+            # Add essential metadata columns
+            file_gdf['dataset_name'] = dataset_names
+            file_gdf['source_file'] = str(geo_file.name)
+
+            # Ensure valid CRS (use WGS84 if missing)
+            if file_gdf.crs is None:
+                file_gdf.set_crs("EPSG:4326", inplace=True)
+            elif file_gdf.crs != 'EPSG:4326':
+                # Reproject to WGS84 for consistency
+                file_gdf = file_gdf.to_crs('EPSG:4326')
+
+            gdfs.append(file_gdf)
+            total_records += len(file_gdf)
+            print(f"      ✅ {geo_file.name}: {len(file_gdf)} records")
+
+        except Exception as e:
+            print(f"      ❌ Error processing {geo_file.name}: {e}")
+            continue
+
+    if not gdfs:
+        raise ValueError(f"No files could be processed successfully from {len(geo_files)} filtered files")
+
+    # Concatenate all geodataframes
+    if len(gdfs) == 1:
+        gdf = gdfs[0]
+    else:
+        # Use pd.concat then convert back to GeoDataFrame to handle schema differences
+        print(f"   🔗 Concatenating {len(gdfs)} geodataframes...")
+        combined_df = pd.concat(gdfs, ignore_index=True, sort=False)
+
+        # Convert back to GeoDataFrame and ensure geometry column is properly set
+        gdf = gpd.GeoDataFrame(combined_df, geometry='geometry')
+
+        # Ensure CRS is preserved (should be WGS84 from above)
+        if gdf.crs is None:
+            gdf.set_crs("EPSG:4326", inplace=True)
+
+    print(f"   ✅ Combined dataset: {len(gdf)} total records from {len(gdfs)} files")
 
     # Ensure valid CRS (use WGS84 if missing)
     if gdf.crs is None:
@@ -241,7 +280,6 @@ def processed_geodataframe__parallel(
 @config.when(execution_mode="sequential")
 @tag(stage="process", data_type="geodataframe")
 def processed_geodataframe__sequential(
-    dataset_download_path__sequential: str,  # Placeholder dependency
     dataset_names: List[str]
 ) -> gpd.GeoDataFrame:
     """Placeholder for sequential mode - actual processing happens in collected_arrow_tables__sequential."""
@@ -288,9 +326,14 @@ def collected_arrow_tables__parallel(geo_arrow_table: Collect[pa.Table]) -> List
 def collected_arrow_tables__sequential(
     dataset_names: List[str],
     doi_metadata: Dict[str, Dict[str, Any]],
-    max_mb: int = 250
+    max_mb: int = 300
 ) -> List[pa.Table]:
     """Process all datasets sequentially and return list of arrow tables."""
+    # Import Path at function level to avoid scoping issues
+    from pathlib import Path
+    import urllib.request
+    import subprocess
+
     arrow_tables = []
 
     for dataset_name in dataset_names:
@@ -307,9 +350,6 @@ def collected_arrow_tables__sequential(
 
                 if "raw.githubusercontent.com" in doi_url:
                     # Raw GitHub file - download directly
-                    import urllib.request
-                    from pathlib import Path
-
                     print(f"   📥 Downloading raw GitHub file: {doi_url}")
                     filename = Path(doi_url).name
                     if not filename.endswith(('.geojson', '.json', '.shp', '.gpkg', '.kml', '.gml')):
@@ -322,13 +362,19 @@ def collected_arrow_tables__sequential(
 
                 else:
                     # GitHub repository - clone it
-                    import subprocess
                     repo_url = doi_url.replace("https://github.com/", "")
-                    subprocess.run([
+
+                    # Use subprocess with proper cleanup
+                    process = subprocess.run([
                         "git", "clone", "--depth", "1",
                         f"https://github.com/{repo_url}.git",
                         download_dir
                     ], check=True, capture_output=True)
+
+                    # Ensure process is properly cleaned up
+                    if hasattr(process, 'terminate'):
+                        process.terminate()
+
                     print(f"   ✅ Cloned repository to {download_dir}")
             else:
                 datahugger.get(
@@ -340,36 +386,92 @@ def collected_arrow_tables__sequential(
             # Process geospatial data
             download_path = Path(download_dir)
             geo_extensions = {'.shp', '.geojson', '.gpkg', '.kml', '.gml', '.json'}
-            geo_files = []
+            all_geo_files = []
 
             for ext in geo_extensions:
-                geo_files.extend(download_path.rglob(f"*{ext}"))
+                all_geo_files.extend(download_path.rglob(f"*{ext}"))
 
-            if not geo_files:
+            if not all_geo_files:
                 print(f"No geospatial files found for {dataset_name}")
                 continue
 
-            # Load the largest geospatial file
-            main_file = max(geo_files, key=lambda f: f.stat().st_size)
-            gdf = gpd.read_file(main_file)
+            # Apply file filters if specified
+            file_filters = metadata.get("file_filters", {})
+            geo_files = _apply_file_filters(all_geo_files, file_filters)
 
-            # Add metadata
-            gdf['source_file'] = str(main_file.name)
+            if not geo_files:
+                print(f"   ⚠️  No files passed filters for {dataset_name}, using all found files")
+                geo_files = all_geo_files
 
-            # Ensure valid CRS
-            if gdf.crs is None:
-                gdf.set_crs("EPSG:4326", inplace=True)
+            print(f"   📁 Found {len(geo_files)} geospatial files after filtering:")
+            for f in geo_files:
+                print(f"      - {f.name} ({f.stat().st_size / 1024:.1f} KB)")
 
-            # Convert to arrow table using our helper function
-            table = _geoarrow_table(gdf, dataset_name)
+            # Process all filtered files and concatenate them
+            gdfs = []
 
-            arrow_tables.append(table)
+            for geo_file in geo_files:
+                print(f"   📄 Processing file: {geo_file.name}")
+                try:
+                    # Read file with explicit resource management
+                    file_gdf = gpd.read_file(geo_file)
+
+                    # Add metadata
+                    file_gdf['dataset_name'] = dataset_name
+                    file_gdf['source_file'] = str(geo_file.name)
+
+                    # Ensure valid CRS
+                    if file_gdf.crs is None:
+                        file_gdf.set_crs("EPSG:4326", inplace=True)
+                    elif file_gdf.crs != 'EPSG:4326':
+                        file_gdf = file_gdf.to_crs('EPSG:4326')
+
+                    gdfs.append(file_gdf)
+                    print(f"      ✅ {geo_file.name}: {len(file_gdf)} records")
+
+                except Exception as e:
+                    print(f"      ❌ Error processing {geo_file.name}: {e}")
+                    continue
+
+            if not gdfs:
+                print(f"   ⚠️  No files could be processed for {dataset_name}")
+                continue
+
+            # Concatenate all geodataframes
+            if len(gdfs) == 1:
+                gdf = gdfs[0]
+            else:
+                print(f"   🔗 Concatenating {len(gdfs)} geodataframes for {dataset_name}...")
+                combined_df = pd.concat(gdfs, ignore_index=True, sort=False)
+                gdf = gpd.GeoDataFrame(combined_df, geometry='geometry')
+
+                if gdf.crs is None:
+                    gdf.set_crs("EPSG:4326", inplace=True)
+
+            print(f"   ✅ Combined {dataset_name}: {len(gdf)} total records from {len(gdfs)} files")
+
+            # Read file with explicit resource management
+            try:
+                # Convert to arrow table using our helper function
+                table = _geoarrow_table(gdf, dataset_name)
+
+                arrow_tables.append(table)
+
+            finally:
+                # Explicitly clean up geodataframe to free file handles
+                if 'gdf' in locals():
+                    del gdf
 
         except Exception as e:
             print(f"Error processing {dataset_name}: {e}")
             continue
         finally:
+            # Clean up download directory
             shutil.rmtree(download_dir, ignore_errors=True)
+
+    # Force garbage collection to clean up any lingering resources
+    import gc
+    gc.collect()
 
     return arrow_tables
 

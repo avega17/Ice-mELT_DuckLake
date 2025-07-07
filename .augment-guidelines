@@ -48,3 +48,39 @@ Parallelization
 Data Products
     * datacubes of existing STAC imagery with PV locations
     * curated global PV dataset
+
+# Hamilton + dbt Integration Best Practices
+
+## Hamilton Dataflow Patterns
+* Noun-based function naming (e.g., 'pv_h3_grid_cells' not 'pv_locations_to_h3')
+* Dependency injection for configuration parameters
+* Modular organization (<500 lines per file)
+* Helper functions use single underscore prefix (_helper_function) to exclude from DAG visualizations
+* Configurable variants of functions use "__suffix" with double underscore and @config.when decorator
+* Functions with @config.when and __suffix MUST have identical signatures 
+* Use config.when decorator for handling parallel vs sequential execution function variants
+* AVOID creating file variants with suffixes (e.g., _simple, _v2) - import statements get forgotten, rely on version control instead
+* Always verify import statements match the files being modified - check Builder.with_modules() calls before debugging
+* Minimal exception handling and fallback approaches - delegate validation to dbt and prefer graceful failures over complex error handling
+* GeoArrow-rs Python bindings for spatial operations with from_geopandas()/to_geopandas() and zero-copy Arrow conversion between nodes, WKB conversion as needed for DuckDB storage
+
+## dbt Integration Patterns
+* raw layer creates individual dataset tables preserving original schemas
+* dbt uses raw layer tables as sources via {{ source('doi_pv_raw', 'table_name') }}
+* dbt Python models execute Hamilton DAGs via configured Drivers and return Ibis dataframes
+
+## DuckDB Configuration
+* DuckDB has native Arrow support 
+* Community extensions require 'from community' specification
+* Essential extensions: spatial, h3, https, geography, ducklake
+* Use DuckDB native hive partitioning by dates and countries for Parquet exports to object storage
+
+## Spatial Data Handling
+* H3 API v4+ with h3-py library for vectorized operations
+* Prioritize geopandas sindex functions in spatial optimization and deduplication modules over duckdb spatial functions
+* Use views (local) vs materialized views (prod) for Overture Maps data
+
+## Cloud Configuration
+* MotherDuck: md: prefix for cloud databases, token via environment variables
+* Neon PostgreSQL: for multi-user ducklake + stac metadata, connection via environment variables
+* Extension compatibility for cloud environments

@@ -79,7 +79,7 @@ def aggregated_result(processed_data: pd.DataFrame) -> pd.DataFrame:
 Hamilton supports dynamic DAG generation for scenarios like:
 
 ```python
-from hamilton.function_modifiers import Parallelizable, Collect
+from hamilton.htypes import Parallelizable, Collect
 
 def dataset_urls() -> Parallelizable[str]:
     """Generate URLs for parallel processing."""

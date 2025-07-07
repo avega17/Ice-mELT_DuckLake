@@ -1,0 +1,219 @@
+{
+  "earth_search_aws": {
+    "display_name": "Earth Search AWS | Sentinel-1/2, Landsat, NAIP",
+    "catalog_type": "api",
+    "catalog_uri": "https://earth-search.aws.element84.com/v1",
+    "description": "Earth-Search API contains imagery from Sentinel-1, Sentinel-2, Landsat satellites, and NAIP aerial imagery",
+    "documentation_url": "https://element84.com/earth-search/",
+    "include_collections": [
+      "sentinel-2-l2a",
+      "sentinel-1-grd",
+      "landsat-c2-l2",
+      "naip"
+    ],
+    "collection_sensors": {
+      "sentinel-2-l2a": {
+        "platform": "Sentinel-2A/B",
+        "gsd_meters": 10,
+        "bands": ["red", "green", "blue", "nir", "swir16", "swir22"],
+        "temporal_range": "2015-present"
+      },
+      "sentinel-1-grd": {
+        "platform": "Sentinel-1A/B",
+        "gsd_meters": 10,
+        "bands": ["vv", "vh"],
+        "temporal_range": "2014-present"
+      },
+      "landsat-c2-l2": {
+        "platform": "Landsat-8/9",
+        "gsd_meters": 30,
+        "bands": ["red", "green", "blue", "nir", "swir16", "swir22"],
+        "temporal_range": "2013-present"
+      },
+      "naip": {
+        "platform": "NAIP",
+        "gsd_meters": 0.6,
+        "bands": ["red", "green", "blue", "nir"],
+        "temporal_range": "2009-present",
+        "coverage": "USA only"
+      }
+    },
+    "search_parameters": {
+      "max_cloud_cover": 20,
+      "date_range": "2020-01-01/2024-12-31",
+      "buffer_meters": 1000,
+      "max_items_per_location": 10
+    },
+    "cql_filter": "eo:cloud_cover < 20",
+    "priority": 1,
+    "skip": false
+  },
+  "maxar_open_data": {
+    "display_name": "Maxar Open Data | 30cm VHR | Event-based",
+    "catalog_type": "static",
+    "catalog_uri": "https://maxar-opendata.s3.amazonaws.com/events/catalog.json",
+    "description": "Full-resolution (30cm) imagery from Maxar's Open Data Program for disaster response events",
+    "documentation_url": "https://stacindex.org/catalogs/maxar-open-data-catalog-ard-format",
+    "include_collections": ["maxar-open-data"],
+    "collection_sensors": {
+      "maxar-open-data": {
+        "platform": "WorldView-1/2/3, GeoEye-1",
+        "gsd_meters": 0.3,
+        "bands": ["red", "green", "blue", "nir"],
+        "temporal_range": "2009-present",
+        "coverage": "Event-based (disasters, conflicts)"
+      }
+    },
+    "search_parameters": {
+      "max_cloud_cover": 10,
+      "date_range": "2020-01-01/2024-12-31",
+      "buffer_meters": 500,
+      "max_items_per_location": 5
+    },
+    "cql_filter": "eo:cloud_cover < 10",
+    "priority": 3,
+    "skip": false
+  },
+  "satellogic_earthview": {
+    "display_name": "Satellogic EarthView | 1m | Multi-sensor",
+    "catalog_type": "static",
+    "catalog_uri": "https://satellogic-earthview.s3.us-west-2.amazonaws.com/stac/catalog.json",
+    "description": "Subsets from Sentinel-1, Sentinel-2, NEON, and Satellogic constellation imagers at 1m ground sample distance",
+    "documentation_url": "https://satellogic-earthview.s3.us-west-2.amazonaws.com/index.html#data_access",
+    "parquet_uri": "s3://satellogic-earthview-stac-geoparquet/satellogic-earthview-stac-items.parquet",
+    "include_collections": [
+      "satellogic",
+      "sentinel-1-subset",
+      "sentinel-2-subset",
+      "neon-subset"
+    ],
+    "collection_sensors": {
+      "satellogic": {
+        "platform": "Satellogic constellation",
+        "gsd_meters": 1,
+        "bands": ["red", "green", "blue", "nir"],
+        "temporal_range": "2018-present"
+      },
+      "sentinel-1-subset": {
+        "platform": "Sentinel-1A/B",
+        "gsd_meters": 10,
+        "bands": ["vv", "vh"],
+        "temporal_range": "2014-present"
+      },
+      "sentinel-2-subset": {
+        "platform": "Sentinel-2A/B",
+        "gsd_meters": 10,
+        "bands": ["red", "green", "blue", "nir"],
+        "temporal_range": "2015-present"
+      }
+    },
+    "search_parameters": {
+      "max_cloud_cover": 15,
+      "date_range": "2020-01-01/2024-12-31",
+      "buffer_meters": 1000,
+      "max_items_per_location": 8
+    },
+    "cql_filter": "eo:cloud_cover < 15",
+    "priority": 2,
+    "skip": false
+  },
+  "planetary_computer": {
+    "display_name": "Planetary Computer | HLS Harmonized L30/S30",
+    "catalog_type": "api",
+    "catalog_uri": "https://planetarycomputer.microsoft.com/api/stac/v1/",
+    "description": "Harmonized Landsat Sentinel-2 (HLS) collections with consistent 30m resolution",
+    "documentation_url": "https://planetarycomputer.microsoft.com/",
+    "include_collections": [
+      "hls-l30-002",
+      "hls-s30-002"
+    ],
+    "collection_sensors": {
+      "hls-l30-002": {
+        "platform": "Landsat-8/9 (harmonized)",
+        "gsd_meters": 30,
+        "bands": ["red", "green", "blue", "nir", "swir16", "swir22"],
+        "temporal_range": "2013-present",
+        "description": "Harmonized Landsat-8/9 surface reflectance"
+      },
+      "hls-s30-002": {
+        "platform": "Sentinel-2A/B (harmonized)",
+        "gsd_meters": 30,
+        "bands": ["red", "green", "blue", "nir", "swir16", "swir22"],
+        "temporal_range": "2015-present",
+        "description": "Harmonized Sentinel-2 surface reflectance"
+      }
+    },
+    "search_parameters": {
+      "max_cloud_cover": 25,
+      "date_range": "2020-01-01/2024-12-31",
+      "buffer_meters": 1500,
+      "max_items_per_location": 12
+    },
+    "cql_filter": "eo:cloud_cover < 25",
+    "priority": 1,
+    "skip": false,
+    "authentication": {
+      "required": false,
+      "type": "none",
+      "notes": "Public access, no authentication required"
+    }
+  },
+  "overture_maps": {
+    "display_name": "Overture Maps | Global Vector Data | 6 Themes, 4.2B Features",
+    "catalog_type": "static",
+    "catalog_uri": "https://labs.overturemaps.org/stac/catalog.json",
+    "description": "Free and open map data with 6 themes: addresses, buildings, base, divisions, places, and transportation. Nearly 4.2 billion features released monthly as cloud-native GeoParquet",
+    "documentation_url": "https://docs.overturemaps.org/",
+    "data_type": "vector",
+    "data_format": "GeoParquet",
+    "latest_release": "2025-06-25.0",
+    "total_features": "4.2B",
+    "include_themes": [
+      "buildings",
+      "divisions",
+      "base"
+    ],
+    "theme_details": {
+      "buildings": {
+        "description": "Over 2.6B buildings globally - all building types for PV rooftop analysis",
+        "feature_types": ["building", "building_part"],
+        "include_all": true,
+        "documentation": "https://docs.overturemaps.org/guides/buildings/"
+      },
+      "divisions": {
+        "description": "Administrative boundaries for PV location context - specific admin levels only",
+        "feature_types": ["division_area"],
+        "admin_levels": ["dependency", "country", "region", "county", "locality"],
+        "include_all": false,
+        "filter_criteria": "admin_level IN ('dependency', 'country', 'region', 'county', 'locality')",
+        "documentation": "https://docs.overturemaps.org/guides/divisions/"
+      },
+      "base": {
+        "description": "Land use and land cover for PV installation context analysis",
+        "feature_types": ["land_use", "land_cover"],
+        "include_all": false,
+        "excluded_types": ["bathymetry", "infrastructure", "land", "water"],
+        "documentation": "https://docs.overturemaps.org/guides/base/"
+      }
+    },
+    "data_sources": ["OpenStreetMap", "Meta", "Microsoft", "Esri", "OpenAddresses"],
+    "cloud_storage": {
+      "aws_s3": "s3://overturemaps-us-west-2/release/",
+      "azure_blob": "https://overturemapswestus2.blob.core.windows.net/release/"
+    },
+    "search_parameters": {
+      "buffer_meters": 5000,
+      "max_items_per_location": 1000,
+      "spatial_relationship": "intersects"
+    },
+    "use_cases": [
+      "Building footprint analysis for rooftop PV potential",
+      "Administrative boundary enrichment (country to locality level)",
+      "Land use/cover context for PV siting analysis",
+      "Spatial joins with PV installations"
+    ],
+    "priority": 2,
+    "skip": false,
+    "notes": "Vector data catalog - monthly releases as GeoParquet, not imagery"
+  }
+}

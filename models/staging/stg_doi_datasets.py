@@ -1,206 +1,229 @@
-# Staging model for PV features - Python model for geopandas preprocessing
-# This model loads the raw PV features from dlt and applies staging transformations
+"""
+dbt Python staging model for DOI PV datasets.
+
+This model properly uses dbt sources via {{ source() }} function and leverages
+Hamilton DAGs for complex processing. It combines individual dataset tables
+created by Hamilton DOI pipeline while preserving ground-truth values like
+installation dates and precise area estimates.
+
+Pipeline:
+1. Reference Hamilton-created source tables via {{ source() }}
+2. Run Hamilton staging DAGs for deduplication, geometry stats, H3 indexing
+3. Return Ibis dataframe for dbt materialization
+
+Follows proper dbt patterns:
+- Uses {{ source() }} function to reference raw data
+- Leverages Hamilton DAGs we spent time developing
+- Returns Ibis dataframe for dbt to materialize
+"""
 
 def model(dbt, session):
     """
-    Staging model for PV features - focuses on data filtering and standardization.
+    dbt Python model that executes Hamilton DOI pipeline and returns Ibis dataframe.
 
-    This model applies staging-layer processing:
-    1. Loads raw PV features from dlt pipeline
-    2. Converts WKT geometry back to geopandas geometries
-    3. Removes invalid geometries and applies spatial indexing
-    4. Calculates centroids and areas for features that need them
-    5. Standardizes column names across datasets
-    6. Returns clean, filtered geospatial data ready for prepared layer
+    Args:
+        dbt: dbt context object
+        session: dbt session object
+
+    Returns:
+        Ibis dataframe with raw DOI PV installation data
     """
-    import pandas as pd
-    import geopandas as gpd
-    from shapely import wkt
     import sys
+    import os
     from pathlib import Path
+    import warnings
 
-    # Add utils to path for importing preprocessing functions
-    utils_path = Path(dbt.config.project_root) / "utils"
-    if str(utils_path) not in sys.path:
-        sys.path.append(str(utils_path))
+    # Suppress warnings for cleaner dbt output
+    warnings.filterwarnings("ignore", category=UserWarning)
+    warnings.filterwarnings("ignore", category=FutureWarning)
 
-    def standardize_columns(gdf):
-        """
-        Standardize column names and filter relevant columns for staging.
-        Keeps relevant metadata but standardizes naming across datasets.
-        """
-        # Define column mapping for standardization
-        column_mappings = {
-            # Common ID fields
-            'polygon_id': 'installation_id',
-            'sol_id': 'installation_id',
-            'fid': 'installation_id',
-            'unique_id': 'installation_id',
-            'id': 'installation_id',
+    # Add project root to Python path for Hamilton imports
+    project_root = Path(dbt.config.project_root).resolve()
+    sys.path.insert(0, str(project_root))
 
-            # Area fields
-            'area_meters': 'area_m2',
-            'area_pixels': 'area_pixels',
-            'panel.area': 'panel_area_m2',
-            'landscape.area': 'landscape_area_m2',
-            'Area': 'area_m2',
+    try:
+        # Import Hamilton staging modules we developed
+        from hamilton import driver
+        import dataflows.stg_doi_pv_dedup as dedup
+        import dataflows.stg_doi_pv_geom_stats as geom_stats
+        import dataflows.stg_doi_pv_h3_res as h3_indexing
+        import dataflows.stg_doi_pv_std_schema as std_schema
 
-            # Location fields
-            'centroid_latitude': 'centroid_lat',
-            'centroid_longitude': 'centroid_lon',
-            'Latitude': 'centroid_lat',
-            'Longitude': 'centroid_lon',
+        print("🚀 Starting Hamilton staging pipeline for DOI PV datasets...")
 
-            # Temporal fields
-            'install_date': 'installation_date',
-            'Date': 'installation_date',
-
-            # Capacity fields
-            'capacity_mw': 'capacity_mw',
-            'power': 'capacity_mw',
-
-            # Administrative fields
-            'State': 'admin_state',
-            'city': 'admin_city',
-            'Country': 'admin_country',
-            'Province': 'admin_province',
-
-            # Quality/confidence fields
-            'confidence': 'confidence_score',
-            'jaccard_index': 'quality_score'
+        # First, get source data using proper dbt {{ source() }} function
+        # This references the individual dataset tables created by Hamilton DOI pipeline
+        source_tables = {
+            'bdappv': dbt.source('doi_pv_raw', 'doi_bdappv'),
+            'duke_solar': dbt.source('doi_pv_raw', 'doi_duke_solar'),
+            'distributed_solar': dbt.source('doi_pv_raw', 'doi_distributed_solar'),
+            'solar_power_map': dbt.source('doi_pv_raw', 'doi_solar_power_map'),
+            'pv_rooftops': dbt.source('doi_pv_raw', 'doi_pv_rooftops'),
+            'solar_installations': dbt.source('doi_pv_raw', 'doi_solar_installations')
         }
 
-        # Apply column renaming
-        gdf_renamed = gdf.rename(columns=column_mappings)
+        print(f"   📋 Referenced {len(source_tables)} source tables via dbt {{ source() }} function")
 
-        # Define columns to keep (relevant metadata)
-        columns_to_keep = [
-            'installation_id', 'area_m2', 'centroid_lat', 'centroid_lon',
-            'installation_date', 'capacity_mw', 'confidence_score', 'quality_score',
-            'admin_state', 'admin_city', 'admin_country', 'admin_province',
-            'panel_area_m2', 'landscape_area_m2', 'geometry'
-        ]
-
-        # Keep only existing columns from our list
-        available_columns = [col for col in columns_to_keep if col in gdf_renamed.columns]
-
-        # Always keep geometry
-        if 'geometry' not in available_columns:
-            available_columns.append('geometry')
-
-        return gdf_renamed[available_columns].copy()
-
-    # Get metadata from the source table
-    metadata_df = dbt.ref("doi_datasets").to_pandas()
-
-    # Initialize list to collect all processed datasets
-    all_datasets = []
-    
-    for _, row in metadata_df.iterrows():
-        dataset_name = row['dataset_name']
-        output_folder = row.get('output_folder', '')
-        
-        # Skip if no output folder (dataset not downloaded)
-        if not output_folder or not os.path.exists(output_folder):
-            dbt.logger.info(f"Skipping {dataset_name} - no data folder found")
-            continue
-            
-        try:
-            # Find vector files in the dataset folder
-            vector_extensions = ['.geojson', '.json', '.shp', '.gpkg']
-            geom_files = []
-            
-            for root, _, files in os.walk(output_folder):
-                for file in files:
-                    if any(file.lower().endswith(ext) for ext in vector_extensions):
-                        geom_files.append(os.path.join(root, file))
-            
-            if not geom_files:
-                dbt.logger.warning(f"No vector files found for {dataset_name}")
-                continue
-                
-            dbt.logger.info(f"Processing {dataset_name} with {len(geom_files)} files")
-            
-            # Process the vector geometries with staging-specific settings
-            gdf = process_vector_geoms(
-                geom_files=geom_files,
-                dataset_name=dataset_name,
-                output_dir=None,  # Don't write files, just return GDF
-                subset_bbox=None,
-                geom_type=row.get('geometry_type', 'Polygon'),
-                rm_invalid=True,  # Remove invalid geometries
-                dedup_geoms=True,  # Remove overlapping duplicates
-                overlap_thresh=0.75,  # 75% overlap threshold for duplicates
-                out_fmt='geoparquet'
-            )
-
-            if gdf is None or len(gdf) == 0:
-                dbt.logger.warning(f"No valid geometries found for {dataset_name}")
+        # Combine source tables while preserving dataset-specific columns
+        combined_data = []
+        for dataset_name, source_ref in source_tables.items():
+            try:
+                # Convert dbt source reference to pandas DataFrame
+                df = source_ref.to_pandas()
+                df['source_dataset'] = dataset_name
+                combined_data.append(df)
+                print(f"      - Loaded {len(df):,} records from {dataset_name}")
+            except Exception as e:
+                print(f"      ⚠️  Could not load {dataset_name}: {e}")
                 continue
 
-            # Apply additional staging-specific filtering
-            initial_count = len(gdf)
+        if not combined_data:
+            print("   ⚠️  No source data loaded, returning empty result")
+            return _create_empty_result()
 
-            # Ensure spatial index is created for efficient operations
-            if not hasattr(gdf, 'sindex') or gdf.sindex is None:
-                gdf = gdf.reset_index(drop=True)  # Ensure clean index for spatial operations
+        # Combine all datasets
+        combined_df = pd.concat(combined_data, ignore_index=True)
+        print(f"   📊 Combined {len(combined_df):,} total records from {len(combined_data)} datasets")
 
-            # Additional duplicate filtering if not already applied
-            if len(gdf) > 1 and 'geometry' in gdf.columns:
-                gdf = filter_gdf_duplicates(gdf, geom_type='Polygon', overlap_thresh=0.75)
+        # Now run Hamilton staging DAGs on the combined data
+        config = {
+            "execution_mode": "sequential",  # Use sequential for dbt integration
+            "use_cache": True,
+            "target_sensor": "sentinel-2-l2a",
+            "target_use_case": "detection_model"
+        }
 
-            dbt.logger.info(f"Filtered {initial_count - len(gdf)} duplicate/invalid geometries from {dataset_name}")
-            
-            # Standardize column names and filter relevant columns
-            standardized_gdf = standardize_columns(gdf)
+        # Build Hamilton driver with staging modules
+        staging_modules = [dedup, geom_stats, h3_indexing, std_schema]
+        dr = driver.Builder().with_modules(*staging_modules).with_config(config).build()
 
-            # Add dataset metadata to each row
-            standardized_gdf['dataset_name'] = dataset_name
-            standardized_gdf['doi'] = row['doi']
-            standardized_gdf['repository_type'] = row['repo']
-            standardized_gdf['label_format'] = row['label_format']
-            standardized_gdf['source_geometry_type'] = row.get('geometry_type', 'Unknown')
-            standardized_gdf['source_crs'] = row.get('crs', 'Unknown')
+        print(f"   🔧 Hamilton staging driver built with {len(staging_modules)} modules")
 
-            # Ensure we have required spatial columns
-            required_columns = {
-                'area_m2': 0.0,
-                'centroid_lon': 0.0,
-                'centroid_lat': 0.0
-            }
+        # Execute Hamilton staging pipeline
+        final_vars = ["standardized_geodataframe"]
 
-            for col, default_val in required_columns.items():
-                if col not in standardized_gdf.columns:
-                    standardized_gdf[col] = default_val
-            
-            # Convert to standard DataFrame for DuckDB (geometry as WKT)
-            df = pd.DataFrame(standardized_gdf)
-            df['geometry_wkt'] = standardized_gdf.geometry.to_wkt()
-            df = df.drop(columns=['geometry'])  # Remove geopandas geometry column
+        print(f"   ⚙️  Executing Hamilton staging pipeline...")
+        # Pass the combined data as input to Hamilton
+        results = dr.execute(final_vars, inputs={"raw_geodataframe": _convert_to_gdf(combined_df)})
 
-            all_datasets.append(df)
-            dbt.logger.info(f"Successfully processed {len(df)} features from {dataset_name}")
-            dbt.logger.info(f"Columns retained: {list(df.columns)}")
-            
-        except Exception as e:
-            dbt.logger.error(f"Error processing {dataset_name}: {str(e)}")
-            continue
-    
-    if not all_datasets:
-        # Return empty DataFrame with expected schema if no data processed
-        return pd.DataFrame(columns=[
-            'dataset_name', 'doi', 'repository_type', 'label_format',
-            'source_geometry_type', 'source_crs', 'source_label_count',
-            'area_m2', 'centroid_lon', 'centroid_lat', 'geometry_wkt'
-        ])
-    
-    # Combine all datasets
-    combined_df = pd.concat(all_datasets, ignore_index=True)
-    
-    # Add processing metadata
-    combined_df['processed_at'] = pd.Timestamp.now()
-    combined_df['source_system'] = 'doi_dataset_pipeline'
-    
-    dbt.logger.info(f"Combined {len(combined_df)} total PV installations from {len(all_datasets)} datasets")
-    
-    return combined_df
+        # Get the processed result
+        processed_gdf = results["standardized_geodataframe"]
+
+        print(f"   ✅ Hamilton staging pipeline complete")
+        print(f"      - Records processed: {len(processed_gdf):,}")
+        print(f"      - Columns: {len(processed_gdf.columns)}")
+
+        # Convert to Ibis dataframe for dbt materialization
+        ibis_table = _convert_gdf_to_ibis(processed_gdf, session)
+
+        print(f"   🎯 Converted to Ibis dataframe for dbt materialization")
+
+        return ibis_table
+
+    except ImportError as e:
+        print(f"❌ Failed to import Hamilton DOI module: {e}")
+        print(f"   Make sure Hamilton dataflows are available in the project")
+        raise
+
+    except Exception as e:
+        print(f"❌ Hamilton DOI pipeline execution failed: {e}")
+        print(f"   Check Hamilton module configurations and dependencies")
+        raise
+
+
+def _create_empty_result():
+    """Create empty Ibis table with expected schema."""
+    import ibis
+    import pandas as pd
+
+    empty_df = pd.DataFrame(columns=[
+        'dataset_name', 'source_dataset', 'geometry_wkb', 'area_m2',
+        'centroid_lon', 'centroid_lat', 'h3_index', 'h3_resolution',
+        'installation_date', 'capacity_mw', 'building_type', 'installation_type',
+        'processed_at', 'source_system'
+    ])
+    return ibis.memtable(empty_df)
+
+
+def _convert_to_gdf(df):
+    """Convert pandas DataFrame to GeoDataFrame for Hamilton processing."""
+    import geopandas as gpd
+    from shapely import wkb
+
+    # Convert geometry from WKB if needed
+    if 'geometry' in df.columns:
+        # Assume geometry is already in proper format
+        gdf = gpd.GeoDataFrame(df, geometry='geometry', crs='EPSG:4326')
+    else:
+        # Create Point geometries from centroids
+        from shapely.geometry import Point
+        geometry = [Point(lon, lat) for lon, lat in zip(df['centroid_lon'], df['centroid_lat'])]
+        gdf = gpd.GeoDataFrame(df, geometry=geometry, crs='EPSG:4326')
+
+    return gdf
+
+
+def _convert_gdf_to_ibis(gdf, session):
+    """Convert GeoDataFrame to Ibis dataframe for dbt materialization."""
+    import ibis
+    import pandas as pd
+
+    # Convert GeoDataFrame to regular DataFrame for Ibis
+    df = gdf.copy()
+
+    # Convert geometry to WKB bytes for DuckDB storage
+    if 'geometry' in df.columns:
+        df['geometry_wkb'] = df['geometry'].apply(lambda x: x.wkb if x else None)
+        df = df.drop(columns=['geometry'])
+
+    # Add metadata columns for lineage tracking
+    df['processed_at'] = pd.Timestamp.now()
+    df['source_system'] = 'hamilton_staging_pipeline'
+    df['processing_version'] = '1.0'
+
+    # Ensure all columns have appropriate types for DuckDB
+    df = _standardize_column_types(df)
+
+    # Convert to Ibis table
+    ibis_table = ibis.memtable(df)
+
+    return ibis_table
+
+
+def _standardize_column_types(df):
+    """Standardize DataFrame column types for DuckDB compatibility."""
+    import pandas as pd
+    import numpy as np
+
+    # Handle common type conversions for DuckDB
+    for col in df.columns:
+        if df[col].dtype == 'object':
+            # Try to convert object columns to appropriate types
+            if col.endswith('_iso') or col.endswith('_code'):
+                # Country/region codes should be strings
+                df[col] = df[col].astype('string')
+            elif col.endswith('_id') or col.endswith('_index'):
+                # IDs and indexes should be strings or integers
+                try:
+                    df[col] = pd.to_numeric(df[col], errors='ignore')
+                except:
+                    df[col] = df[col].astype('string')
+            else:
+                # Default to string for other object columns
+                df[col] = df[col].astype('string')
+
+        elif df[col].dtype in ['int64', 'int32']:
+            # Ensure integers are int64 for consistency
+            df[col] = df[col].astype('int64')
+
+        elif df[col].dtype in ['float64', 'float32']:
+            # Ensure floats are float64 for consistency
+            df[col] = df[col].astype('float64')
+
+    # Handle any remaining NaN values
+    df = df.fillna({
+        col: 0 if df[col].dtype in ['int64', 'float64'] else ''
+        for col in df.columns if df[col].dtype in ['int64', 'float64', 'string', 'object']
+    })
+
+    return df

@@ -32,6 +32,7 @@ profiles.yml
 .azure/
 *credentials*
 *config*
+*.user.yml
 
 # Database connection strings
 database.url

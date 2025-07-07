@@ -1,4 +1,35 @@
 {
+    "chn_jiangsu_vhr_pv_2021": {
+        "display_name": "China Jiangsu | 2021 | ~3.7K labels",
+        "doi": "10.5281/zenodo.5171712",
+        "repo": "zenodo",
+        "compression": "zip",
+        "label_fmt": "pixel_mask",
+        "has_imgs": true,
+        "model_arch": "DeepLab v3+",
+        "label_count": 3716,
+        "skip": true
+    },
+    "chn_med_res_pv_2024": {
+        "display_name": "China PV | 2015;2020 | ~3.4K labels"
+        , "doi": "https://github.com/qingfengxitu/ChinaPV"
+        , "paper_doi": "https://doi.org/10.1038/s41597-024-04356-z"
+        , "paper_title": "Vectorized solar photovoltaic installation dataset across China in 2015 and 2020"
+        , "data_records_descr": "ChinaPV contains the specific location as well as the size of each PV installation. This study generated two vectorized solar PV installation maps in China for the year 2015 and 2020. It includes the location and size of each PV installation. ChinaPV is delivered in “ESRI Shapefile” formats in the WGS-84 coordinate system. The attributes table of the PV polygons include the PV polygon ID, latitude and longitude coordinates of the centre point in each PV installation, the area (km2) and perimeter (km) of each PV, the name of province this PV locates, as well as whether this PV locates in urban areas or rural areas. The area and perimeter for each PV was calculated in the Asia North Albers Equal Area Conic projection in Arcgis. Besides, we are making efforts to produce China’s PV power station map at an annual basis. These maps will be released once generated in the future."
+        , "repo": "github"
+        , "compression": null
+        , "label_fmt": "shp"
+        , "file_filters": {
+            "include_patterns": ["PV_.*\\.shp$"],
+            "exclude_patterns": ["NPV_.*\\.shp$"],
+            "use_regex": true,
+            "description": "Include all PV shapefiles (e.g., PV_Test_2020.shp) using regex. Exclude NPV negative samples."
+        }
+        , "keep_cols": [
+            "FID_PV_202",
+            "Shape_Area"
+        ]
+    },
     "deu_maxar_vhr_2023": {
         "display_name": "Maxar | 30cm/15cm | Germany | ~2K labels",
         "doi": "10.6084/m9.figshare.22081091.v3",
@@ -15,84 +46,95 @@
         "skip": true
     },
     "uk_crowdsourced_pv_2020": {
-        "display_name": "UK Crowdsourced PV | 2020 | ~265K labels",
-        "doi": "10.5281/zenodo.4059881",
-        "repo": "zenodo",
-        "compression": null,
-        "label_fmt": "geojson",
-        "geom_type": {
+        "display_name": "UK Crowdsourced PV | 2020 | ~265K labels"
+        , "doi": "10.5281/zenodo.4059881"
+        , "repo": "zenodo"
+        , "compression": null
+        , "label_fmt": "geojson"
+        , "geom_type": {
             "features": [
                 "Point",
                 "Polygon",
                 "MultiPolygon"
             ]
-        },
-        "crs": null,
-        "has_imgs": false,
-        "model_arch": "None",
-        "label_count": 265418
-    },
-    "usa_eia_large_scale_pv_2023": {
-        "display_name": "USA EIA database | 2023 | ~4K labels",
-        "doi": "10.5281/zenodo.8038684",
-        "repo": "sciencebase",
-        "compression": "zip",
-        "label_fmt": "shp",
-        "has_imgs": false,
-        "label_count": 4186,
-        "skip": true
-    },
-    "chn_med_res_pv_2024": {
-        "display_name": "China PV | 2015;2020 | ~3.4K labels",
-        "doi": "https://github.com/qingfengxitu/ChinaPV",
-        "repo": "github",
-        "compression": null,
-        "label_fmt": "shp",
-        "has_imgs": false,
-        "label_count": 3356,
-        "file_filters": {
-            "include_patterns": ["PV_.*\\.shp$"],
-            "exclude_patterns": ["NPV_.*\\.shp$"],
-            "use_regex": true,
-            "description": "Include all PV shapefiles (e.g., PV_Test_2020.shp) using regex. Exclude NPV negative samples."
         }
+        , "crs": "WGS84"
+        , "paper_doi": "https://doi.org/10.1038/s41597-020-00739-0"
+        , "paper_title": "A harmonised, high-coverage, open dataset of solar photovoltaic installations in the UK"
+        , "data_records_descr": "Our harmonised dataset is published in two formats for widest possible compatibility, considering the potential use of data by specialists in power, GIS, data science and machine learning. Firstly we exported our data to CSV, giving attributes for each PV installation as well as its location as a simple longitude-latitude centroid. All coordinates are given according to the WGS84 (GPS) coordinate reference system (CRS). To represent geographic structure in more detail we exported GeoJSON. The geometries originated largely from OSM, though for entries without OSM objects their location was represented as a single geolocation point derived from address data. The GeoJSON has a slightly lower number of entries (265,406) than the CSV (265,417) because a small number of complex entries are represented as two CSV rows but merged into single GeoJSON objects. Clustering is indicated via a column listing an (arbitrary) cluster ID for each installation; each installation is given as a separate record, so that cluster membership can be used or ignored as needed (Table 1)."
+        , "has_imgs": false
+        , "model_arch": "None"
+        , "label_count": 265406
+        , "file_filters": {
+            "include_patterns": ["*.geojson"],
+            "exclude_patterns": ["*.csv"],
+            "use_regex": false,
+            "description": "Include only geojson files, exclude csv files"
+        }   
+        , "keep_cols": [
+            "osm_id",
+            "area_sqm"
+        ]
     },
     "usa_cali_usgs_pv_2016": {
-        "display_name": "USA USGS aerial imagery | 2016 | ~19K labels",
-        "doi": "10.6084/m9.figshare.3385780.v4",
-        "repo": "figshare",
-        "compression": null,
-        "label_fmt": "geojson",
-        "crs": "NAD83",
-        "geom_type": {
+        "display_name": "USA USGS aerial imagery | 2016 | ~19K labels"
+        , "doi": "10.6084/m9.figshare.3385780.v4"
+        , "repo": "sciencebase"
+        , "compression": null
+        , "label_fmt": "geojson"
+        , "crs": "NAD83"
+        , "geom_type": {
             "features": "Polygon"
-        },
-        "has_imgs": false,
-        "model_arch": "None",
-        "label_count": 19433
+        }
+        , "paper_doi": "https://doi.org/10.1038/sdata.2016.106"
+        , "paper_title": "Distributed solar photovoltaic array location and extent dataset for remote sensing object identification"
+        , "data_records_descr": "The solar array polygon location and extent data as well as the imagery data used to generate this dataset are available as a collected repository of four sets of files (Data Citation 1). The primary dataset within that collection (Data Citation 2) consists of the table of solar panels in four formats with equivalent information to enable these data to be as easily accessed as possible: JSON, GeoJSON, MATLAB (.mat) and comma-separated values (CSV) files. A complete listing of each field, its contents, the format of the data, and the units of the data is given in Table 1. The first of the files is in JavaScript Object Notation (JSON) data-interchange format. The JSON file is titled SolarArrayPolygons.json and each object in this array has fields that correspond to those described in Table 1. The second of the files is a GeoJSON file, SolarArrayPolygons.geojson, which has the latitude and longitude coordinates of each array stored along with all of the properties of each array (described in Table 1), including the pixel-based coordinates. For the MATLAB format, a single file titled SolarArrayPolygons.mat contains ‘data’, the cell array containing all of the columns described in Table 1, as well as an array called ‘fields’ which includes the name of each column of the cell array 'data'. These data are also presented in an alternative, and perhaps more broadly accessible CSV format. There are three CSV files. The file polygonDataExceptVertices.csv contains the 19 fields of Table 1, which is all of the data except for the vertices of the bounding polygons for each array. The vertices are presented in two files, both containing the same polygons: one file contains the coordinates of the vertices as pixel (x,y) values with respect to the image that contains the polygon (polygonVertices_PixelCoordinates.csv) while the other file contains latitude and longitude coordinates for each vertex (polygonVertices_LatitudeLongitude.csv). These two CSV files with polygon vertices also contain a column (the second column of the files) with the number of vertices in the polygon, to make reading the data from the CSV files more straightforward. The polygon ID field, which is the first column in all of these files, links the information between each of the CSV files. All imagery data is from the USGS High Resolution Orthoimagery collection and can be found in Data Citations 3 to 6. For Fresno (Data Citation 3), Stockton (Data Citation 4), and Modesto (Data Citation 5), each image file actually has two files associated with it: <IMAGENAME>.tif, which is the image file itself, and <IMAGENAME>.tif.xml, which is the USGS metadata for the corresponding image. The image names correspond to the 'image_name' field of Table 1 found in the files described earlier (Data Citation 2). The Oxnard imagery (Data Citation 6) also has a set of image files <IMAGENAME>.tif, but only one metadata file for the entire imagery set, which is cirgis_2013_12inch_metadata.xml."
+        , "has_imgs": true
+        , "model_arch": "None"
+        , "label_count": 19433
+        , "file_filters": {
+            "include_patterns": ["*SolarArrayPolygons.geojson"],
+            "exclude_patterns": [],
+            "use_regex": false,
+            "description": "Include only geojson files, exclude rest of files"
+        }
+        , "keep_cols": [
+            "polygon_id",
+            "centroid_latitude",
+            "centroid_longitude",
+            "area_meters"
+        ]
     },
-    "chn_jiangsu_vhr_pv_2021": {
-        "display_name": "China Jiangsu | 2021 | ~3.7K labels",
-        "doi": "10.5281/zenodo.5171712",
-        "repo": "zenodo",
-        "compression": "zip",
-        "label_fmt": "pixel_mask",
-        "has_imgs": true,
-        "model_arch": "DeepLab v3+",
-        "label_count": 3716,
-        "skip": true
+    "usa_eia_large_scale_pv_2023": {
+        "display_name": "USA EIA database | 2023 | ~4K labels"
+        , "doi": "10.5281/zenodo.8038684"
+        , "repo": "sciencebase"
+        , "compression": "zip"
+        , "label_fmt": "shp"
+        , "paper_doi": "https://doi.org/10.1038/sdata.2016.106"
+        , "has_imgs": false
+        , "label_count": 4186
+        , "skip": true
     },
     "ind_pv_solar_farms_2022": {
-        "doi": "https://raw.githubusercontent.com/microsoft/solar-farms-mapping/refs/heads/main/data/solar_farms_india_2021_merged_simplified.geojson",
-        "repo": "github",
-        "compression": null,
-        "label_fmt": "geojson",
-        "geom_type": {
+        "doi": "https://raw.githubusercontent.com/microsoft/solar-farms-mapping/refs/heads/main/data/solar_farms_india_2021_merged_simplified.geojson"
+        , "repo": "github"
+        , "compression": null
+        , "label_fmt": "geojson"
+        , "geom_type": {
             "features": "MultiPolygon"
-        },
-        "crs": "WGS84",
-        "has_imgs": false,
-        "label_count": 117
+        }
+        , "crs": "WGS84"
+        , "paper_doi": "https://doi.org/10.1038/s41597-022-01499-9"
+        , "paper_title": "An Artificial Intelligence Dataset for Solar Energy Locations in India"
+        , "data_records_descr": "The final dataset includes 1363 validated and grouped solar PV installations. We provide the vector data in the form of polygons or multi-polygons outlining the solar farms and center points with the geo-coordinates for the center of each installation in a file named https://github.com/microsoft/solar-farms-mapping/blob/main/data/solar_farms_india_2021.geojson. The dataset includes the following variables: fid: Unique identifier for a solar farm. It is shared by polygons belonging to the same farm; Area: The area of the site in squared meters (m2); Latitude: Latitude corresponding to the center point of the solar installation; Longitude: Longitude corresponding to the center point of the solar installation; State: Indian State where the solar PV installation is located at."
+        , "paper_title": "An Artificial Intelligence Dataset for Solar Energy Locations in India"
+        , "has_imgs": false
+        , "label_count": 1360
+        , "keep_cols": [
+            "fid",
+            "Area"
+        ]
     },
     "fra_west_eur_pv_installations_2023": {
         "doi": "10.5281/zenodo.6865878",
@@ -113,25 +155,32 @@
         "skip": true
     },
     "global_pv_inventory_sent2_spot_2021": {
-        "doi": "10.5281/zenodo.5005867",
-        "repo": "zenodo",
-        "compression": null,
-        "label_fmt": "geojson",
-        "geom_type": [
+        "doi": "10.5281/zenodo.5005867"
+        , "repo": "zenodo"
+        , "compression": null
+        , "label_fmt": "geojson"
+        , "geom_type": [
             "Polygon"
-        ],
-        "crs": "WGS84",
-        "has_imgs": false,
-        "label_count": [
+        ]
+        , "crs": "WGS84"
+        , "paper_doi": "https://doi.org/10.1038/s41586-021-03957-7"
+        , "paper_title": "A global inventory of photovoltaic solar energy generating units"
+        , "data_records_descr": "see supplementary table 8 at https://static-content.springer.com/esm/art%3A10.1038%2Fs41586-021-03957-7/MediaObjects/41586_2021_3957_MOESM1_ESM.pdf"
+        , "has_imgs": false
+        , "label_count": [
             50426,
             68661
-        ],
-        "file_filters": {
+        ]
+        , "file_filters": {
             "include_patterns": ["predicted_.*\\.geojson$", ".*polygons\\.geojson$"],
             "exclude_patterns": [".*tiles\\.geojson$"],
             "use_regex": true,
             "description": "Include all polygon files (predicted, train, cv, test) for comprehensive PV coverage including smaller facilities"
         }
+        , "keep_cols": [
+            "unique_id",
+            "area"
+        ]
     },
     "global_pv_inventory_sent2_2024": {
         "doi": "https://github.com/yzyly1992/GloSoFarID/tree/main/data_coordinates",
@@ -147,21 +196,28 @@
         "skip": true
     },
     "global_harmonized_large_solar_farms_2020": {
-        "doi": "10.6084/m9.figshare.11310269.v6",
-        "repo": "figshare",
-        "compression": "zip",
-        "label_fmt": "gpkg",
-        "geom_type": [
+        "doi": "10.6084/m9.figshare.11310269.v6"
+        , "repo": "figshare"
+        , "compression": "zip"
+        , "label_fmt": "gpkg"
+        , "paper_doi": "https://doi.org/10.1038/s41597-020-0469-8"
+        , "paper_title": "Harmonised global datasets of wind and solar farm locations and power"
+        , "data_records_descr": "This dataset is stored in three different formats: shapefiles for use with GIS software, geopackage for open-source usage, and .csv format for ease of use in any statistical software. Two final datasets were produced that represent the best publicly available global, harmonized geospatial data for field-scale solar PV and wind installations (Fig. 5). We provide vector data (point and polygon) for grouped installations (more than two features; Methods), in Eckert IV equal area projection. Global solar PV installations: (a) global_solar_2020.gpkg (b) global_solar_2020.csv (c) global_solar_2020 layer in global_wind_solar_2020.gdb; Both datasets include the following variables: x_id - unique ID for data record; GID_0 - country ISO-3 code; panels - the number of OSM tagged features that occurred within the boundaries of the cluster; panel.area (solar only) -  the (estimated) area of panels in the cluster **in km2**; landscape.area - the area of the site in km2, i.e. the area bounded by the outermost points or polygons; water - binary indicator of whether the feature occurs in an area classified as water; urban - binary indicator of whether the feature occurs on land classified as urban; power - estimated power capacity **in MW**."
+        , "geom_type": [
             "Polygon"
-        ],
-        "crs": "WGS84",
-        "has_imgs": false,
-        "label_count": 35272,
-        "file_filters": {
+        ]
+        , "crs": "WGS84"
+        , "has_imgs": false
+        , "label_count": 35272
+        , "file_filters": {
             "include_patterns": [".*solar.*WGS84.*\\.(gpkg|shp)$"],
             "exclude_patterns": [".*wind.*"],
             "use_regex": true,
             "description": "Only solar farms in WGS84 CRS, exclude wind energy"
         }
+        , "keep_cols": [
+            "sol_id",
+            "panels.area"
+        ]
     }
 }

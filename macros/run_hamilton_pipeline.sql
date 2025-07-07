@@ -78,7 +78,7 @@ try:
         use_parallel=True,
         use_cache=True,
         force_download=False,
-        max_mb=250
+        max_mb=300
     )
     
     print(f"SUCCESS: Hamilton DOI pipeline completed. Processed {len(result)} datasets.")

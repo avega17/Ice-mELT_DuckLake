@@ -1,0 +1,163 @@
+version: 2
+
+# Additional data quality tests for the geospatial pipeline
+models:
+  - name: stg_pv_consolidated
+    description: "Consolidated PV installations with comprehensive testing"
+    tests:
+      # Data volume tests
+      - dbt_utils.expression_is_true:
+          expression: "count(*) > 1000"
+          config:
+            severity: warn
+      
+      # Spatial data quality tests
+      - dbt_utils.expression_is_true:
+          expression: "count(distinct h3_index) > 100"
+          config:
+            severity: warn
+            
+    columns:
+      - name: h3_index
+        description: "H3 spatial index"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "length(h3_index) = 15"  # H3 index length validation
+              
+      - name: area_m2
+        description: "Installation area in square meters"
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 1
+              max_value: 1000000
+              config:
+                severity: warn
+                
+      - name: geometry_wkb
+        description: "Geometry in WKB format for DuckDB"
+        tests:
+          - not_null
+          
+      - name: source_dataset
+        description: "Source dataset identifier"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['uk_crowdsourced_pv_2020', 'chn_med_res_pv_2024', 'usa_cali_usgs_pv_2016', 'ind_pv_solar_farms_2022', 'global_pv_inventory_sent2_spot_2021', 'global_harmonized_large_solar_farms_2020']
+              
+      - name: dedup_group_id
+        description: "Deduplication group identifier"
+        tests:
+          - not_null
+          
+      - name: is_primary_duplicate
+        description: "Primary record in deduplication group"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+
+# Staging model tests
+  - name: stg_pv_installations_optimized
+    description: "Spatially optimized PV installations"
+    tests:
+      # Performance optimization tests
+      - dbt_utils.expression_is_true:
+          expression: "count(distinct country_iso) > 10"
+          config:
+            severity: warn
+            
+    columns:
+      - name: hilbert_index
+        description: "Hilbert curve index for spatial ordering"
+        tests:
+          - not_null
+          
+      - name: country_iso
+        description: "ISO country code"
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "length(country_iso) = 2"
+              
+      - name: admin_level_0_name
+        description: "Country name from Overture Maps"
+        tests:
+          - not_null
+          
+      - name: building_count_nearby
+        description: "Count of buildings within buffer"
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 10000
+              config:
+                severity: warn
+
+# Source data relationship tests
+tests:
+  - name: test_no_orphaned_records
+    description: "Ensure all staging records have corresponding source records"
+    sql: |
+      SELECT COUNT(*) as orphaned_count
+      FROM {{ ref('stg_pv_consolidated') }} stg
+      LEFT JOIN {{ source('doi_pv_raw', 'doi_uk_crowdsourced_pv_2020') }} src1 ON stg.source_table = 'doi_uk_crowdsourced_pv_2020'
+      LEFT JOIN {{ source('doi_pv_raw', 'doi_chn_med_res_pv_2024') }} src2 ON stg.source_table = 'doi_chn_med_res_pv_2024'
+      LEFT JOIN {{ source('doi_pv_raw', 'doi_usa_cali_usgs_pv_2016') }} src3 ON stg.source_table = 'doi_usa_cali_usgs_pv_2016'
+      LEFT JOIN {{ source('doi_pv_raw', 'doi_ind_pv_solar_farms_2022') }} src4 ON stg.source_table = 'doi_ind_pv_solar_farms_2022'
+      LEFT JOIN {{ source('doi_pv_raw', 'doi_global_pv_inventory_sent2_spot_2021') }} src5 ON stg.source_table = 'doi_global_pv_inventory_sent2_spot_2021'
+      LEFT JOIN {{ source('doi_pv_raw', 'doi_global_harmonized_large_solar_farms_2020') }} src6 ON stg.source_table = 'doi_global_harmonized_large_solar_farms_2020'
+      WHERE src1.dataset_name IS NULL 
+        AND src2.dataset_name IS NULL 
+        AND src3.dataset_name IS NULL 
+        AND src4.dataset_name IS NULL 
+        AND src5.dataset_name IS NULL 
+        AND src6.dataset_name IS NULL
+    config:
+      severity: error
+      
+  - name: test_spatial_index_coverage
+    description: "Ensure H3 spatial indexing covers all records"
+    sql: |
+      SELECT COUNT(*) as missing_h3_count
+      FROM {{ ref('stg_pv_consolidated') }}
+      WHERE h3_index IS NULL OR h3_index = ''
+    config:
+      severity: error
+      
+  - name: test_deduplication_effectiveness
+    description: "Verify deduplication is working properly"
+    sql: |
+      SELECT COUNT(*) as potential_duplicates
+      FROM (
+        SELECT centroid_lon, centroid_lat, COUNT(*) as duplicate_count
+        FROM {{ ref('stg_pv_consolidated') }}
+        WHERE is_primary_duplicate = true
+        GROUP BY centroid_lon, centroid_lat
+        HAVING COUNT(*) > 1
+      ) duplicates
+    config:
+      severity: warn
+      
+  - name: test_ground_truth_preservation
+    description: "Ensure ground-truth values are preserved from source datasets"
+    sql: |
+      SELECT COUNT(*) as missing_ground_truth
+      FROM {{ ref('stg_pv_consolidated') }}
+      WHERE source_dataset IN ('uk_crowdsourced_pv_2020', 'global_harmonized_large_solar_farms_2020')
+        AND (installation_date IS NULL OR installation_date = '')
+    config:
+      severity: warn
+
+# Hamilton pipeline integration tests
+  - name: test_hamilton_processing_metadata
+    description: "Verify Hamilton processing metadata is complete"
+    sql: |
+      SELECT COUNT(*) as missing_metadata
+      FROM {{ ref('stg_pv_consolidated') }}
+      WHERE processed_at IS NULL 
+        OR source_system IS NULL 
+        OR dbt_model IS NULL
+    config:
+      severity: error

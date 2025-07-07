@@ -1,43 +1,184 @@
 version: 2
 
 sources:
-  - name: eo_pv_complete
-    description: "Raw EO PV datasets loaded via dlt pipeline"
+  # DOI PV Raw Data - Individual tables per dataset from Hamilton DOI pipeline
+  - name: doi_pv_raw
+    description: "Raw DOI PV datasets - individual tables per dataset to preserve original schemas and ground-truth values like installation dates and precise area estimates"
     database: eo_pv_data
-    schema: eo_pv_complete  # Updated to match dlt dataset name
-
+    schema: main  # Hamilton creates tables in main schema
+    config:
+      freshness:
+        warn_after: {count: 24, period: hour}
+        error_after: {count: 48, period: hour}
+      loaded_at_field: processed_at
     tables:
-      - name: pv_features
-        description: "Individual PV installation features from all DOI-sourced datasets"
+      # Individual dataset tables created by Hamilton with pattern: doi_{dataset_name}
+      - name: doi_uk_crowdsourced_pv_2020
+        description: "UK Crowdsourced PV 2020 dataset - Building-integrated PV installations with installation dates"
         columns:
           - name: dataset_name
-            description: "Name of the source dataset (e.g., 'ind_pv_solar_farms_2022')"
+            description: "Source dataset identifier"
             tests:
               - not_null
-
-          - name: source_file
-            description: "Original filename from the dataset"
-            tests:
-              - not_null
-
+              - accepted_values:
+                  values: ['uk_crowdsourced_pv_2020']
           - name: geometry
-            description: "Geospatial geometry in WKT format (Point, Polygon, etc.)"
+            description: "Geometry column (DuckDB spatial type)"
+            tests:
+              - not_null
+          - name: area_m2
+            description: "Installation area in square meters"
+          - name: centroid_lon
+            description: "Centroid longitude"
+            tests:
+              - dbt_utils.accepted_range:
+                  min_value: -180
+                  max_value: 180
+          - name: centroid_lat
+            description: "Centroid latitude"
+            tests:
+              - dbt_utils.accepted_range:
+                  min_value: -90
+                  max_value: 90
+          - name: installation_date
+            description: "Installation date (ground-truth value)"
+          - name: capacity_mw
+            description: "Capacity in megawatts (if available)"
+          - name: processed_at
+            description: "Hamilton processing timestamp"
             tests:
               - not_null
 
-          # Note: Additional columns may exist from original datasets
-          # These will be preserved with their original names and can be
-          # accessed in staging models for dataset-specific processing
+      - name: doi_chn_med_res_pv_2024
+        description: "China Medium Resolution PV 2024 dataset - Utility-scale solar installations with capacity data"
+        columns:
+          - name: dataset_name
+            description: "Source dataset identifier"
+            tests:
+              - not_null
+              - accepted_values:
+                  values: ['chn_med_res_pv_2024']
+          - name: geometry
+            description: "Geometry column (DuckDB spatial type)"
+            tests:
+              - not_null
+          - name: area_m2
+            description: "Installation area in square meters"
+          - name: centroid_lon
+            description: "Centroid longitude"
+          - name: centroid_lat
+            description: "Centroid latitude"
+          - name: capacity_mw
+            description: "Capacity in megawatts (ground-truth value)"
+          - name: installation_type
+            description: "Type of installation"
+          - name: processed_at
+            description: "Hamilton processing timestamp"
+            tests:
+              - not_null
 
-        # Data quality tests for the source
-        tests:
-          - dbt_utils.expression_is_true:
-              expression: "count(*) > 0"
-              config:
-                severity: error
+      - name: doi_usa_cali_usgs_pv_2016
+        description: "USA California USGS PV 2016 dataset - Residential/commercial PV with precise area estimates"
+        columns:
+          - name: dataset_name
+            description: "Source dataset identifier"
+            tests:
+              - not_null
+              - accepted_values:
+                  values: ['usa_cali_usgs_pv_2016']
+          - name: geometry
+            description: "Geometry column (DuckDB spatial type)"
+            tests:
+              - not_null
+          - name: area_m2
+            description: "Installation area in square meters (precise estimate)"
+          - name: centroid_lon
+            description: "Centroid longitude"
+          - name: centroid_lat
+            description: "Centroid latitude"
+          - name: building_type
+            description: "Type of building (residential, commercial, etc.)"
+          - name: processed_at
+            description: "Hamilton processing timestamp"
+            tests:
+              - not_null
 
-          # Test that we have data from multiple datasets
-          - dbt_utils.expression_is_true:
-              expression: "count(distinct dataset_name) >= 3"
-              config:
-                severity: warn
+      - name: doi_ind_pv_solar_farms_2022
+        description: "India PV Solar Farms 2022 dataset - Global PV installations"
+        columns:
+          - name: dataset_name
+            description: "Source dataset identifier"
+            tests:
+              - not_null
+              - accepted_values:
+                  values: ['ind_pv_solar_farms_2022']
+          - name: geometry
+            description: "Geometry column (DuckDB spatial type)"
+            tests:
+              - not_null
+          - name: area_m2
+            description: "Installation area in square meters"
+          - name: centroid_lon
+            description: "Centroid longitude"
+          - name: centroid_lat
+            description: "Centroid latitude"
+          - name: processed_at
+            description: "Hamilton processing timestamp"
+            tests:
+              - not_null
+
+      - name: doi_global_pv_inventory_sent2_spot_2021
+        description: "Global PV Inventory Sentinel-2 SPOT 2021 dataset - Rooftop solar installations with building context"
+        columns:
+          - name: dataset_name
+            description: "Source dataset identifier"
+            tests:
+              - not_null
+              - accepted_values:
+                  values: ['global_pv_inventory_sent2_spot_2021']
+          - name: geometry
+            description: "Geometry column (DuckDB spatial type)"
+            tests:
+              - not_null
+          - name: area_m2
+            description: "Installation area in square meters"
+          - name: centroid_lon
+            description: "Centroid longitude"
+          - name: centroid_lat
+            description: "Centroid latitude"
+          - name: building_type
+            description: "Type of building"
+          - name: roof_orientation
+            description: "Roof orientation (if available)"
+          - name: processed_at
+            description: "Hamilton processing timestamp"
+            tests:
+              - not_null
+
+      - name: doi_global_harmonized_large_solar_farms_2020
+        description: "Global Harmonized Large Solar Farms 2020 dataset - Mixed PV types with installation metadata"
+        columns:
+          - name: dataset_name
+            description: "Source dataset identifier"
+            tests:
+              - not_null
+              - accepted_values:
+                  values: ['global_harmonized_large_solar_farms_2020']
+          - name: geometry
+            description: "Geometry column (DuckDB spatial type)"
+            tests:
+              - not_null
+          - name: area_m2
+            description: "Installation area in square meters"
+          - name: centroid_lon
+            description: "Centroid longitude"
+          - name: centroid_lat
+            description: "Centroid latitude"
+          - name: installation_type
+            description: "Type of installation (utility, distributed, etc.)"
+          - name: installation_date
+            description: "Installation date (if available)"
+          - name: processed_at
+            description: "Hamilton processing timestamp"
+            tests:
+              - not_null

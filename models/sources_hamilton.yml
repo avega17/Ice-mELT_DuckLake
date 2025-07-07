@@ -109,3 +109,87 @@ sources:
           
           - name: ymax
             description: "Bounding box maximum latitude"
+
+  - name: optimized_data
+    description: "Spatially optimized PV data with Hamilton processing"
+    schema: raw_data
+    tables:
+      - name: pv_installations_optimized
+        description: "Unified PV installations with spatial optimizations applied"
+        columns:
+          - name: dataset_name
+            description: "Source dataset identifier"
+            tests:
+              - not_null
+
+          - name: country_iso
+            description: "ISO country code from admin boundary join"
+            tests:
+              - not_null
+
+          - name: h3_index
+            description: "H3 spatial index for efficient querying"
+            tests:
+              - not_null
+
+          - name: h3_resolution
+            description: "H3 resolution level used"
+            tests:
+              - accepted_values:
+                  values: [6, 7, 8, 9, 10, 11, 12]
+
+          - name: hilbert_index
+            description: "Hilbert curve index for spatial ordering"
+
+          - name: centroid_lon
+            description: "Centroid longitude in WGS84"
+            tests:
+              - not_null
+              - dbt_utils.accepted_range:
+                  min_value: -180
+                  max_value: 180
+
+          - name: centroid_lat
+            description: "Centroid latitude in WGS84"
+            tests:
+              - not_null
+              - dbt_utils.accepted_range:
+                  min_value: -90
+                  max_value: 90
+
+          - name: area_m2
+            description: "Area in square meters (for polygons)"
+            tests:
+              - dbt_utils.accepted_range:
+                  min_value: 0
+                  max_value: 1000000
+
+          - name: geometry
+            description: "Spatial geometry column (DuckDB spatial type)"
+            tests:
+              - not_null
+
+          - name: admin_level_0_name
+            description: "Country name from Overture Maps"
+
+          - name: admin_level_1_name
+            description: "State/province name from Overture Maps"
+
+          - name: land_cover_subtype
+            description: "Land cover classification from Overture Maps"
+
+          - name: land_use_subtype
+            description: "Land use classification from Overture Maps"
+
+          - name: building_count_nearby
+            description: "Count of buildings within buffer distance"
+
+          - name: processed_at
+            description: "Timestamp when Hamilton processed this record"
+            tests:
+              - not_null
+
+          - name: optimization_version
+            description: "Version of spatial optimization applied"
+            tests:
+              - not_null
