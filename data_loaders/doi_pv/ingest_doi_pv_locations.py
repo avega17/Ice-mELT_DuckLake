@@ -14,23 +14,23 @@ Usage:
 from hamilton import driver
 from hamilton.execution import executors
 
-# Add parent directory to path to import dataflows
+# Add repo root to path to import dataflows
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import os
 from dotenv import load_dotenv
 
-from dataflows import doi_pv_locations
+from dataflows.raw import doi_pv_locations
 
 # Load environment variables from .env file
 load_dotenv()
 
 # Get repo root and manifest path from environment or use defaults
 # Use relative paths as they work better than absolute paths in this environment
-REPO_ROOT = str(Path(__file__).parent.parent)
-INGEST_METADATA = str(Path(__file__).parent / "doi_manifest.json")
+REPO_ROOT = str(Path(__file__).parent.parent.parent)
+INGEST_METADATA = str(Path(__file__).parent.parent / "doi_manifest.json")
 
 
 def create_hamilton_driver(

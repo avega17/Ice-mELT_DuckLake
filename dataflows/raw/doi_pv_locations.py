@@ -35,12 +35,10 @@ import geoarrow.rust.core as geoarrow
 load_dotenv()
 
 # Get repo root and manifest path from environment or use defaults
-REPO_ROOT = os.getenv('REPO_ROOT', str(Path(__file__).parent.parent))
+REPO_ROOT = os.getenv('REPO_ROOT', str(Path(__file__).parent.parent.parent))
 INGEST_METADATA = os.getenv('INGEST_METADATA', os.path.join(REPO_ROOT, "data_loaders", "doi_manifest.json"))
 
 from hamilton.function_modifiers import cache, tag, config
-
-# Import Hamilton types directly (following working pattern from raw_pv_doi_ingest.py)
 from hamilton.htypes import Parallelizable, Collect
 
 # Import storage helper functions
@@ -51,9 +49,6 @@ from ._doi_pv_helpers_storage import (
     _storage_result,
     _apply_file_filters
 )
-
-
-
 
 # =============================================================================
 # HAMILTON DATAFLOW NODES

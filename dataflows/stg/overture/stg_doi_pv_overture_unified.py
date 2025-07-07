@@ -32,7 +32,7 @@ import duckdb
 from hamilton.function_modifiers import cache, tag, config
 
 # Import storage helpers
-from ._doi_pv_helpers_storage import _geoarrow_table, _duckdb_table_from_geoarrow
+from .doi_pv._doi_pv_helpers_storage import _geoarrow_table, _duckdb_table_from_geoarrow
 
 
 @tag(stage="overture_integration", data_type="unified_context")

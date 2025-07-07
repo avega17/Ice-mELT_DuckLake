@@ -23,9 +23,8 @@ from hamilton.htypes import Parallelizable, Collect
 load_dotenv()
 
 # Get repo root and manifest path from environment or use defaults
-# Use relative paths as they work better than absolute paths in this environment
-REPO_ROOT = str(Path(__file__).parent.parent)
-INGEST_METADATA = str(Path(__file__).parent.parent / "data_loaders" / "doi_manifest.json")
+REPO_ROOT = os.getenv('REPO_ROOT', str(Path(__file__).parent.parent.parent))
+INGEST_METADATA = os.getenv('INGEST_METADATA', str(Path(__file__).parent.parent.parent / "data_loaders" / "doi_manifest.json"))
 
 
 # =============================================================================
@@ -41,7 +40,7 @@ DOI_TABLE_PREFIX = "doi_"
 REQUIRED_COLUMNS = [
     'dataset_name', 'source_file', 'geometry', 'centroid_lon', 'centroid_lat',
     'area_m2', 'processed_at', 'unified_id', 'source_area_m2', 'capacity_mw',
-    'install_date', 'country_code', 'region_code'
+    'install_date'
 ]
 
 # Field candidates for COALESCE-based standardization (following fetch_and_preprocess.py pattern)
@@ -49,9 +48,7 @@ STANDARDIZED_FIELDS = {
     'unified_id': ['fid', 'sol_id', 'GID_0', 'polygon_id', 'unique_id', 'osm_id', 'FID_PV_202'],
     'source_area_m2': ['Shape_Area', 'Area', 'area_sqm', 'panels.area', 'area'],
     'capacity_mw': ['capacity_mw', 'power', 'capacity'],
-    'install_date': ['install_date', 'installation_date', 'Date'],
-    'country_code': ['iso-3166-1', 'ISO_A2', 'Country'],
-    'region_code': ['iso-3166-2', 'Province', 'State']
+    'install_date': ['install_date', 'installation_date', 'Date']
 }
 
 
@@ -202,7 +199,7 @@ def standardized_dataset_table__parallel(
             present_candidates = [col for col in candidates if col in available_columns]
             if present_candidates:
                 # Create COALESCE expression with proper type casting
-                if std_field in ['unified_id', 'country_code', 'region_code', 'install_date']:
+                if std_field in ['unified_id', 'install_date']:
                     # Cast to string for ID and text fields
                     coalesce_expr = table[present_candidates[0]].cast('string')
                     for col in present_candidates[1:]:
@@ -246,7 +243,7 @@ def standardized_dataset_table__parallel(
                 print(f"      ✅ {std_field}: COALESCE({', '.join(present_candidates)})")
             else:
                 # Add NULL placeholder for missing fields with proper type
-                if std_field in ['unified_id', 'country_code', 'region_code', 'install_date']:
+                if std_field in ['unified_id', 'install_date']:
                     select_columns.append(ibis.null().cast('string').name(std_field))
                 elif std_field in ['source_area_m2', 'capacity_mw']:
                     select_columns.append(ibis.null().cast('float64').name(std_field))
@@ -357,7 +354,7 @@ def standardized_dataset_table__sequential(
                 present_candidates = [col for col in candidates if col in available_columns]
                 if present_candidates:
                     # Create COALESCE expression with proper type casting
-                    if std_field in ['unified_id', 'country_code', 'region_code', 'install_date']:
+                    if std_field in ['unified_id', 'install_date']:
                         # Cast to string for ID and text fields
                         coalesce_expr = table[present_candidates[0]].cast('string')
                         for col in present_candidates[1:]:
@@ -401,7 +398,7 @@ def standardized_dataset_table__sequential(
                     print(f"      ✅ {std_field}: COALESCE({', '.join(present_candidates)})")
                 else:
                     # Add NULL placeholder for missing fields with proper type
-                    if std_field in ['unified_id', 'country_code', 'region_code', 'install_date']:
+                    if std_field in ['unified_id', 'install_date']:
                         select_columns.append(ibis.null().cast('string').name(std_field))
                     elif std_field in ['source_area_m2', 'capacity_mw']:
                         select_columns.append(ibis.null().cast('float64').name(std_field))
@@ -678,8 +675,6 @@ def _create_empty_standardized_table(con) -> ir.Table:
             NULL::VARCHAR as unified_id,
             NULL::DOUBLE as source_area_m2,
             NULL::DOUBLE as capacity_mw,
-            NULL::VARCHAR as install_date,
-            NULL::VARCHAR as country_code,
-            NULL::VARCHAR as region_code
+            NULL::VARCHAR as install_date
         WHERE FALSE
     """)

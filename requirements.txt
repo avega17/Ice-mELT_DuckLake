@@ -7,7 +7,7 @@ datahugger
 dask
 dbt-core>=1.9.0
 dbt-duckdb>=1.9.0
-duckdb>=1.3.0
+duckdb>=1.3.1
 duckdb-engine
 earthengine-api
 # esda
@@ -37,6 +37,7 @@ jupysql>=0.11
 jupyterlab
 lonboard
 matplotlib
+maxar-platform
 motherduck
 notebook
 numpy

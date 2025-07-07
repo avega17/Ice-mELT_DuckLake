@@ -33,7 +33,7 @@ from hamilton.function_modifiers import cache, tag, config
 from hamilton.htypes import Parallelizable, Collect
 
 # Import storage helpers
-from ._doi_pv_helpers_storage import _geoarrow_table, _duckdb_table_from_geoarrow
+from ...doi_pv._doi_pv_helpers_storage import _geoarrow_table, _duckdb_table_from_geoarrow
 
 
 @tag(stage="overture_integration", data_type="metadata")

@@ -39,7 +39,7 @@ except ImportError:
     import sys
     from pathlib import Path
     
-    data_loaders_path = Path(__file__).parent.parent / "data_loaders"
+    data_loaders_path = Path(__file__).parent.parent.parent / "data_loaders"
     sys.path.insert(0, str(data_loaders_path))
     
     from hamilton_modules import transformations, validations

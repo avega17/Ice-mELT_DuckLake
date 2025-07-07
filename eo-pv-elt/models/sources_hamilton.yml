@@ -60,8 +60,8 @@ sources:
             tests:
               - not_null
           
-          - name: geometry_wkt
-            description: "Geometry in Well-Known Text format"
+          - name: geometry
+            description: "Geometry in Well-Known Binary format"
             tests:
               - not_null
           
@@ -72,12 +72,6 @@ sources:
             description: "Timestamp when Hamilton processed this record"
             tests:
               - not_null
-          
-          - name: source_system
-            description: "System that processed the data raw PV location datasets"
-            tests:
-              - accepted_values:
-                  values: ['raw_pv_doi_ingest']
 
   - name: overture_data
     description: "Overture Maps data queried by Hamilton (views only)"

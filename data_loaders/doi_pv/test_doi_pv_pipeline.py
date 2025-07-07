@@ -4,6 +4,11 @@ Test script for the DOI PV locations pipeline.
 Tests the proper Hamilton driver pattern.
 """
 
+# Add repo root to path to import modules
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 def test_hamilton_driver_creation():
     """Test Hamilton driver creation with proper module separation."""
     print("🧪 Testing Hamilton Driver Creation")
@@ -12,8 +17,8 @@ def test_hamilton_driver_creation():
     try:
         # Test imports
         print("🔍 Testing imports...")
-        from ingest_doi_pv_locations import create_hamilton_driver, run_doi_pv_pipeline
-        from dataflows import doi_pv_locations
+        from data_loaders.doi_pv.ingest_doi_pv_locations import create_hamilton_driver, run_doi_pv_pipeline
+        from dataflows.raw import doi_pv_locations
         print("   ✅ Imports successful")
         
         # Test driver creation
@@ -99,7 +104,7 @@ def test_basic_functionality():
     print("=" * 50)
 
     try:
-        from ingest_doi_pv_locations import create_hamilton_driver
+        from data_loaders.doi_pv.ingest_doi_pv_locations import create_hamilton_driver
 
         config_sequential = {
             "database_path": ":memory:",

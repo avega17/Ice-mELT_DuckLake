@@ -19,41 +19,27 @@ Usage:
     python run_staging_transformations.py --database ./custom.duckdb --target-table stg_pv_consolidated
 """
 
-# Add parent directory to path to import dataflows
+# Add repo root to path to import dataflows
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from dataflows import stg_doi_pv_consolidation as stg_doi_pv_consolidation
-from hamilton import driver
-from hamilton.execution import executors
-
-# Add parent directory to path to import dataflows
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 import os
 import argparse
 from dotenv import load_dotenv
+from hamilton import driver
+from hamilton.execution import executors
 
 # Import staging dataflow modules
-from dataflows import (
-    stg_doi_pv_dedup,
-    stg_doi_pv_geom_stats,
-    stg_doi_pv_h3_res,
-    stg_doi_pv_std_schema,
-    stg_doi_pv_hive_partitioning,
-    stg_doi_pv_database_export
-)
+from dataflows.stg.consolidation import stg_doi_pv_consolidation
 
 # Load environment variables from .env file
 load_dotenv()
 
 # Get repo root and database path from environment or use defaults
 # Use relative paths as they work better than absolute paths in this environment
-REPO_ROOT = str(Path(__file__).parent.parent)
-DATABASE_PATH = str(Path(__file__).parent.parent / "db" / "eo_pv_data.duckdb")
+REPO_ROOT = str(Path(__file__).parent.parent.parent.parent)
+DATABASE_PATH = str(Path(__file__).parent.parent.parent.parent / "db" / "eo_pv_data.duckdb")
 
 
 def create_hamilton_driver(
@@ -76,7 +62,8 @@ def create_hamilton_driver(
     # Import staging modules - start with just consolidation to test basic pattern
     staging_modules = [
         stg_doi_pv_consolidation,  # Core consolidation module
-        stg_doi_pv_std_schema,     # Required by consolidation for field mapping
+        # Note: stg_doi_pv_std_schema, stg_doi_pv_hive_partitioning, and stg_doi_pv_database_export
+        # modules are not found in the current codebase structure
     ]
     
     # Create driver with staging modules

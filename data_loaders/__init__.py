@@ -6,7 +6,6 @@ Each pipeline handles a specific data source and follows Hamilton best practices
 for dependency management, function naming, and lineage tracking.
 
 Available Pipelines:
-- raw_pv_doi_ingest: DOI-based photovoltaic datasets from various research sources
 - overture_maps_loader: Global administrative boundaries and building footprints (planned)
 - solar_irradiance_loader: NREL and Google Solar API irradiance data (planned)
 
@@ -39,7 +38,6 @@ Integration with dbt:
 Directory Structure:
     data_loaders/
     ├── __init__.py                    # This file
-    ├── raw_pv_doi_ingest.py          # DOI datasets Hamilton pipeline
     ├── overture_maps_loader.py       # Overture Maps pipeline (planned)
     ├── solar_irradiance_loader.py    # Solar irradiance pipeline (planned)
     └── utils/
@@ -57,16 +55,6 @@ Best Practices:
 7. Configuration-driven execution with sensible defaults
 """
 
-# Import main pipeline functions
-try:
-    from .raw_pv_doi_ingest import run_doi_pipeline
-    __all__ = ['run_doi_pipeline']
-except ImportError as e:
-    # Handle case where dependencies aren't installed
-    import warnings
-    warnings.warn(f"Could not import Hamilton pipelines: {e}")
-    __all__ = []
-
 # Future pipeline imports (when implemented)
 # from .overture_maps_loader import run_overture_pipeline
 # from .solar_irradiance_loader import run_solar_pipeline
@@ -79,15 +67,6 @@ __description__ = "Hamilton-based data loading pipelines for Earth Observation P
 
 # Pipeline registry for dynamic discovery
 AVAILABLE_PIPELINES = {
-    'doi_datasets': {
-        'module': 'raw_pv_doi_ingest',
-        'function': 'run_doi_pipeline',
-        'description': 'DOI-based photovoltaic datasets from research sources',
-        'status': 'active',
-        'data_sources': ['zenodo', 'usgs', 'github'],
-        'output_format': 'arrow_tables',
-        'estimated_runtime': '5-15 minutes'
-    },
     'overture_maps': {
         'module': 'overture_maps_loader',
         'function': 'run_overture_pipeline',
