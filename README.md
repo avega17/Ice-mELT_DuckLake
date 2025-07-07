@@ -1,6 +1,6 @@
-# ice-mELT DuckLake: EO PV Data Pipeline
+# Ice-m<sup>3</sup>ELT DuckLake
 
-A modern data lakehouse pipeline for Earth Observation (EO) photovoltaic (PV) solar panel segmentation and energy forecasting, built on open-source technologies and cloud-native architectures. This work is developed as part of the methodology for my Computer Science master's thesis at [UPR, Río Piedras](https://natsci.uprrp.edu/ccom/masters/). 
+Modern data lakehouse pipeline for Earth Observation (EO) photovoltaic (PV) solar panel segmentation and energy forecasting, built on open-source and cloud-native technologies. This work is developed as part of the methodology for my Computer Science master's thesis at [UPR, Río Piedras](https://natsci.uprrp.edu/ccom/masters/). 
 
 ## 🎯 Project Overview
 
@@ -20,10 +20,8 @@ This project implements a comprehensive data pipeline for processing and analyzi
 **ice-mELT DuckLake** reflects our modern data architecture approach:
 
 - **Ice**: Leverages **Iceberg** and related open table formats and **Icechunk** tensor storage engine
-- **mELT**: **Modern** data stack with **Extract-Load-Transform** pipelines ([dbt methodology](https://www.getdbt.com/blog/extract-load-transform))
+- **m<sup>3</sup>ELT**: **Modern** and **Multi-Modal** data stack with **Extract-Load-Transform** pipelines ([dbt methodology](https://www.getdbt.com/blog/extract-load-transform))
 - **DuckLake**: Data lakehouse architecture using the new **DuckLake** [open table and lakehouse format](https://ducklake.select/faq#what-is-ducklake) for SQL-based metadata management (see [the file explosion problem](https://www.starburst.io/blog/apache-iceberg-files/))
-
-
 
 ### Core Technologies and Spatio-Temporal Data
 
@@ -122,9 +120,9 @@ GeoArrow-RS Conversion → DuckDB Storage + GeoParquet Export (native I/O)
 
 ### ✅ Completed
 - **Hamilton dataflow pipeline** for DOI PV vector datasets
-  - 6+ global DOI datasets processed (~360K+ PV installations)
+  - 6+ global DOI datasets processed (>400K+ PV installations)
   - Parallel/sequential execution modes with intelligent caching
-  - File filtering system using regex patterns from manifest
+  - File filtering system using regex or glob patterns from DOI manifest
   - GeoArrow-RS integration for efficient spatial operations with native I/O
   - DuckDB storage with spatial extensions + GeoParquet export
 - **Modern data stack integration**
@@ -132,15 +130,14 @@ GeoArrow-RS Conversion → DuckDB Storage + GeoParquet Export (native I/O)
   - dbt project structure with staging/prepared/curated layers
   - DuckDB + dbt-duckdb integration with spatial extensions
   - Apache Arrow for zero-copy data exchange
+  - Ibis for familiar Python dataframe API, but performant SQL backend
 - **Development environment** with conda, extensions, and comprehensive testing
   - [Future] Migrate dependencies to [uv, a python package manager](https://www.datacamp.com/tutorial/python-uv) [implemented in rust](https://www.saaspegasus.com/guides/uv-deep-dive/#why-use-uv) (see [pros and cons](https://www.bitecode.dev/p/a-year-of-uv-pros-cons-and-should))
 
 ### 🔄 In Progress
-- dbt Python + SQL models for data transformations
+- dbt Python + SQL staging models for data transformations
 - STAC catalog integration for satellite imagery
 - Spatial processing utilities (H3 indexing, admin boundaries)
-
-
 
 ## 🗺️ Roadmap
 
@@ -160,10 +157,10 @@ GeoArrow-RS Conversion → DuckDB Storage + GeoParquet Export (native I/O)
 - [ ] **Raster processing dataflows** with Xarray and Tensorstore integration
 
 ### Phase 3: Multi-Backend & Cloud
-- [ ] **Ibis integration**: Multi-SQL backend dataframe library for Hamilton outputs
-- [ ] **R2 object storage** and Iceberg catalog features
-- [ ] **Neon serverless PostgreSQL** for transactional workloads
-- [ ] **MotherDuck integration** for cloud analytical scaling
+- [ ] **Ibis integration**: Multi-SQL backend dataframe library for Python. Used as dbt model output
+- [ ] **R2 object storage** and Iceberg catalog features with zero egress fees
+- [ ] **Neon serverless PostgreSQL** for multi-user ducklake catalog + pgstac transactional workloads
+- [ ] **MotherDuck integration** for cloud analytical scaling, storage, and serving of data for cloud 
 
 ### Phase 4: Advanced Analytics
 - [ ] **VirtualiZarr dataflows** for virtual datasets referencing original assets
@@ -175,33 +172,13 @@ GeoArrow-RS Conversion → DuckDB Storage + GeoParquet Export (native I/O)
 
 ### Prerequisites
 ```bash
-# Install conda environment
-conda env create -f environment.yml
+# create conda environment
+conda env create -n eo-pv-cv python=3.10
 conda activate eo-pv-cv
+pip install -r requirements.txt
 
 # Install DuckDB extensions
 # Extensions are auto-loaded via dbt configuration
-```
-
-### Quick Start
-```bash
-# 1. Run DOI PV locations pipeline (parallel mode with caching)
-python run_doi_pv_pipeline.py --parallel
-
-# 2. Alternative: sequential mode without caching
-python run_doi_pv_pipeline.py --sequential --no-cache
-
-# 3. Test dbt connection
-dbt debug
-
-# 4. Run dbt transformations
-dbt run
-
-# 5. Check data quality
-dbt test
-
-# 6. Visualize Hamilton DAG (optional)
-python data_loaders/visualize_hamilton_dag.py
 ```
 
 ### Project Structure
@@ -209,6 +186,7 @@ python data_loaders/visualize_hamilton_dag.py
 ├── dataflows/                   # Hamilton dataflow modules
 │   ├── doi_pv_locations.py     # DOI PV datasets pipeline
 │   └── _doi_pv_helpers_storage.py  # Storage helper functions
+│   └── stg_*                    # TBD dataflows for tranforming raw tables to stg models
 ├── data_loaders/                # Data loading utilities
 │   ├── hamilton_modules/        # Reusable Hamilton components
 │   ├── utils/                   # Arrow operations, validation
@@ -270,33 +248,16 @@ export GOOGLE_SERVICE_ACCOUNT_JSON="path/to/credentials.json"
 ### Key Files
 - **`profiles.yml`**: Database connections (DuckDB, MotherDuck, PostgreSQL)
 - **`dbt_project.yml`**: Model configurations and DuckDB optimizations
-- **`.dlt/config.toml`**: Data loading pipeline settings
 
 ## 📈 Data Products
 
 ### Current Datasets
-- **Global PV installations**: 360K+ installations from 4 validated DOI sources
+- **Global PV installations**: 400K+ installations from 4 validated DOI sources (not deduplicated yet)
   - Mixed geometry types: Points, Polygons, MultiPolygons
   - Standardized to EPSG:4326 (WGS84) coordinate system
-  - Available in both DuckDB (spatial queries) and GeoParquet (interoperability)
-- **Administrative boundaries**: Country/region context via Overture Maps (planned)
-- **H3 spatial index**: Multi-resolution hexagonal grid for efficient queries (planned)
-
-### Pipeline Usage Examples
-
-```bash
-# Basic parallel execution with caching
-python run_doi_pv_pipeline.py --parallel
-
-# Custom database location with larger download limits
-python run_doi_pv_pipeline.py --database /path/to/custom.duckdb --max-mb 500
-
-# Sequential mode without caching for debugging
-python run_doi_pv_pipeline.py --sequential --no-cache
-
-# Disable GeoParquet export for faster processing
-python run_doi_pv_pipeline.py --no-geoparquet
-```
+  - Available in both DuckDB tables (spatial queries) and (Geo)Parquet files (interoperability and data lake foundation)
+- **Administrative boundaries**: Country/region context via Overture Maps (WIP)
+- **H3 spatial index**: Multi-resolution hexagonal grid for efficient queries (WIP)
 
 ### Planned Products
 - **PV-STAC datacubes**: Satellite imagery aligned with PV locations using Hamilton dataflows sourced from existing STAC catalogs without data duplication
