@@ -145,15 +145,17 @@ except Exception as e:
         {% set count_results = run_query(count_query) %}
         {% set record_count = count_results.columns[0].values()[0] if count_results else 0 %}
         {{ log("Table " ~ schema_name ~ "." ~ table_name ~ " exists with " ~ record_count ~ " records", info=true) }}
-        {% return record_count > 0 %}
+        {{ record_count > 0 }}
       {% else %}
         {{ log("Table " ~ schema_name ~ "." ~ table_name ~ " does not exist", info=true) }}
-        {% return false %}
+        {{ false }}
       {% endif %}
+    {% else %}
+      {{ false }}
     {% endif %}
+  {% else %}
+    {{ false }}
   {% endif %}
-  
-  {% return false %}
   
 {% endmacro %}
 
@@ -215,15 +217,17 @@ except Exception as e:
       {% set optimization_version = results.columns[2].values()[0] if results.columns|length > 2 else 'unknown' %}
       
       {{ log("Latest data processed at: " ~ latest_processed ~ " by " ~ source_system ~ " (v" ~ optimization_version ~ ")", info=true) }}
-      
-      {% return {
+
+      {{ {
         'latest_processed': latest_processed,
         'source_system': source_system,
         'optimization_version': optimization_version
-      } %}
+      } }}
+    {% else %}
+      {{ {} }}
     {% endif %}
+  {% else %}
+    {{ {} }}
   {% endif %}
-  
-  {% return {} %}
   
 {% endmacro %}

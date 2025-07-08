@@ -3,7 +3,8 @@
 
 {{ config(
     materialized='view',
-    description='Country-level PV installation statistics with Overture Maps country info'
+    description='Country-level PV installation statistics with Overture Maps country info',
+    enabled=false 
 ) }}
 
 with pv_with_admin as (

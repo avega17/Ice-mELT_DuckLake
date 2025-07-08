@@ -1,0 +1,71 @@
+"""
+dbt-ibis staging model for consolidated PV installations.
+
+This model uses the proper dbt-ibis integration to call Hamilton consolidation
+and return an Ibis table for dbt materialization.
+
+Uses the @depends_on decorator and returns an Ibis table expression.
+"""
+
+from dbt_ibis import depends_on, source
+import sys
+import os
+from pathlib import Path
+
+# No dependencies needed since Hamilton works directly with database
+@depends_on()
+def model():
+    """
+    Call Hamilton consolidation pipeline and return Ibis table.
+    
+    Returns:
+        Ibis table expression with consolidated PV installations from Hamilton
+    """
+    # Setup project paths
+    project_root = Path(os.getenv('REPO_ROOT', '.')).resolve()
+    sys.path.insert(0, str(project_root))
+    
+    print("🚀 dbt-ibis staging: Calling Hamilton consolidation pipeline...")
+    
+    try:
+        # Import Hamilton consolidation module
+        from hamilton import driver
+        import dataflows.stg.consolidation.stg_doi_pv_consolidation as consolidation
+        
+        # For now, let's simplify and just run Hamilton to create the consolidated table
+        # The DuckLake attachment will be handled by Hamilton itself
+        # This avoids the dbt-duckdb profiles.yml schema validation issues
+
+        # Configuration for Hamilton driver with DuckLake - PARALLEL MODE
+        config = {
+            # "execution_mode": "parallel",  # Test SQLite catalog concurrency!
+            "execution_mode": "sequential",  # Fails with parallel for now; might require contextmanager, mutex, or other workaround for duckdb concurrency 
+            "use_cache": False,
+            "use_ducklake": True,
+            "catalog_path": str(project_root / "db" / "ducklake_catalog.sqlite"),
+            "data_path": str(project_root / "db" / "ducklake_data")
+        }
+        
+        # Build Hamilton driver
+        dr = driver.Builder().with_modules(consolidation).with_config(config).build()
+        
+        # Execute Hamilton consolidation - get the Ibis table
+        print("   🔄 Executing Hamilton consolidation...")
+        results = dr.execute(["geometry_processed_geodataframe"])
+        
+        # Get the Ibis table result
+        ibis_table = results["geometry_processed_geodataframe"]
+        
+        print(f"   ✅ Hamilton consolidation complete")
+        print(f"      - Records: {ibis_table.count().execute():,}")
+        print(f"      - Columns: {len(ibis_table.columns)}")
+        
+        # Return the Ibis table expression for dbt materialization
+        return ibis_table
+        
+    except ImportError as e:
+        print(f"❌ Failed to import Hamilton modules: {e}")
+        raise
+    except Exception as e:
+        print(f"❌ Error in Hamilton consolidation: {e}")
+        raise

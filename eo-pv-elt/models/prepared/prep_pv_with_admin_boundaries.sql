@@ -4,7 +4,8 @@
 {{ config(
     materialized='table',
     description='PV installations with administrative boundaries assigned via efficient H3-based spatial join',
-    pre_hook="INSTALL h3 FROM community; LOAD h3; INSTALL spatial; LOAD spatial;"
+    pre_hook="INSTALL h3 FROM community; LOAD h3; INSTALL spatial; LOAD spatial;",
+    enabled=false 
 ) }}
 
 -- This model uses H3 indexing for efficient spatial joins with Overture Maps data

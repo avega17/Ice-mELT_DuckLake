@@ -3,11 +3,13 @@
 
 {{ config(
     materialized='view',
-    description='DRAFT: Basic summary of PV datasets - to be refined later'
+    description='DRAFT: Basic summary of PV datasets - to be refined later',
+    enabled=false
 ) }}
 
 with prepared_data as (
-    select * from {{ ref('prep_pv_datasets_unified') }}
+    -- Updated to use working staging model instead of disabled prep model
+    select * from {{ ref('stg_pv_consolidated') }}
 ),
 
 basic_summary as (
@@ -16,9 +18,10 @@ basic_summary as (
         count(*) as installation_count,
         avg(area_m2) as avg_area_m2,
         sum(area_m2) as total_area_m2,
-        count(distinct h3_index_res7) as unique_h3_cells_res7,
-        min(prepared_at) as first_processed,
-        max(prepared_at) as last_processed
+        -- Note: H3 indexing not available in staging, will be added in prepared layer
+        -- count(distinct h3_index_res7) as unique_h3_cells_res7,
+        min(processed_at) as first_processed,
+        max(processed_at) as last_processed
     from prepared_data
     group by dataset_name
 )

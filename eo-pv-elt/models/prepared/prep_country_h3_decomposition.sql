@@ -5,7 +5,8 @@
 {{ config(
     materialized='view',
     description='Country geometries decomposed into H3 grid cells - view only to minimize storage',
-    pre_hook="INSTALL h3 FROM community; LOAD h3;"
+    pre_hook="INSTALL h3 FROM community; LOAD h3;",
+    enabled=false 
 ) }}
 
 -- This model uses DuckDB H3 extension to decompose country geometries into H3 cells

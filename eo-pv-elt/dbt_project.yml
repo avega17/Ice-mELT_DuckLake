@@ -101,5 +101,6 @@ on-run-start:
   - "LOAD spatial"
   - "INSTALL h3 FROM community"
   - "LOAD h3"
-  - "INSTALL geography FROM community"
-  - "LOAD geography"
+  # Note: geography extension temporarily commented out due to availability issues
+  # - "INSTALL geography FROM community"
+  # - "LOAD geography"

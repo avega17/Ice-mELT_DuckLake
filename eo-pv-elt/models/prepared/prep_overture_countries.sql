@@ -4,7 +4,8 @@
 
 {{ config(
     materialized='view',
-    description='Country geometries from Overture Maps with PV installation statistics (view only - no storage)'
+    description='Country geometries from Overture Maps with PV installation statistics (view only - no storage)',
+    enabled=false 
 ) }}
 
 -- This model uses DuckDB's ability to query S3 parquet files directly
@@ -45,4 +46,3 @@ select * from clean_countries
 order by country_iso
 
 -- Note: This model requires DuckDB with httpfs extension for S3 access
--- If S3 access fails, this model will need to be modified to use local data

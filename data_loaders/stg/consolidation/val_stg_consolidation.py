@@ -100,7 +100,12 @@ def load_staging_config(args) -> dict:
     """
     
     config = {
-        # Database configuration
+        # DuckLake configuration for concurrent access
+        'use_ducklake': True,
+        'catalog_path': 'db/ducklake_catalog.sqlite',
+        'data_path': 'db/ducklake_data',
+
+        # Legacy database configuration (fallback)
         'database_path': args.database,
         'database_schema': 'main',
         

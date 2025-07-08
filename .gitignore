@@ -12,6 +12,7 @@
 secrets.toml
 .secrets.toml
 *.secrets.toml
+eo-pv-elt/package-lock.yml
 
 # dbt Cloud credentials and profiles
 dbt_cloud.yml

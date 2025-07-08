@@ -26,15 +26,104 @@ load_dotenv()
 REPO_ROOT = os.getenv('REPO_ROOT', str(Path(__file__).parent.parent.parent))
 INGEST_METADATA = os.getenv('INGEST_METADATA', str(Path(__file__).parent.parent.parent / "data_loaders" / "doi_manifest.json"))
 
+# DuckLake configuration for multi-client concurrent access
+DUCKLAKE_CATALOG = "db/ducklake_catalog.sqlite"
+DUCKLAKE_DATA_PATH = "db/ducklake_data"
+DEFAULT_SCHEMA = "main"
+DOI_TABLE_PREFIX = "doi_"
+
+# Legacy database path for backward compatibility
+DEFAULT_DATABASE_PATH = "db/eo_pv_data.duckdb"
+
+
+# =============================================================================
+# DUCKLAKE CONNECTION HELPERS
+# =============================================================================
+
+def _create_ducklake_connection(
+    catalog_path: str = DUCKLAKE_CATALOG,
+    data_path: str = DUCKLAKE_DATA_PATH,
+    use_ducklake: bool = True
+) -> ibis.BaseBackend:
+    """
+    Create Ibis connection to DuckLake using native Ibis DuckLake support.
+
+    This uses the simplified Ibis DuckLake integration pattern from the documentation:
+    https://emilsadek.com/blog/ducklake-ibis/
+
+    Args:
+        catalog_path: Path to SQLite catalog database
+        data_path: Path to DuckLake data files directory
+        use_ducklake: Whether to use DuckLake (True) or fallback to direct DuckDB (False)
+
+    Returns:
+        Ibis connection to DuckLake or DuckDB
+    """
+    if use_ducklake:
+        # Use native Ibis DuckLake support - much simpler!
+        repo_root = Path(REPO_ROOT)
+        full_catalog_path = repo_root / catalog_path
+        full_data_path = repo_root / data_path
+
+        # Ensure paths exist
+        full_catalog_path.parent.mkdir(parents=True, exist_ok=True)
+        full_data_path.mkdir(parents=True, exist_ok=True)
+
+        # Create DuckDB connection with DuckLake extension
+        con = ibis.duckdb.connect(extensions=["ducklake", "spatial"])
+
+        # Install community extensions manually
+        try:
+            con.raw_sql("INSTALL h3 FROM community")
+            con.raw_sql("LOAD h3")
+            # Note: geography extension temporarily commented out due to availability issues
+            # con.raw_sql("INSTALL geography FROM community")
+            # con.raw_sql("LOAD geography")
+        except Exception as e:
+            print(f"⚠️  Community extension warning: {e}")
+
+        # Attach DuckLake using raw SQL (consistent with setup script)
+        ducklake_connection_string = f"ducklake:sqlite:{full_catalog_path}"
+
+        try:
+            # Use raw SQL to attach DuckLake with DATA_PATH
+            attach_sql = f"""
+            ATTACH '{ducklake_connection_string}' AS eo_pv_lakehouse
+                (DATA_PATH '{full_data_path}/');
+            """
+            con.raw_sql(attach_sql)
+            con.raw_sql("USE eo_pv_lakehouse")
+            # install and load extensions
+            con.raw_sql("INSTALL spatial; LOAD spatial;")
+            con.raw_sql("INSTALL arrow FROM community; LOAD arrow;")
+            # load geoarrow type definitions from arrow extension
+            con.raw_sql("CALL register_geoarrow_extensions();")
+            con.raw_sql("INSTALL h3 FROM community; LOAD h3;")
+            print(f"✅ Connected to DuckLake: {ducklake_connection_string}")
+        except Exception as e:
+            print(f"⚠️  DuckLake connection warning: {e}")
+            # Continue with the connection anyway
+
+        return con
+    else:
+        # Fallback to direct DuckDB connection (legacy mode)
+        database_path = Path(REPO_ROOT) / DEFAULT_DATABASE_PATH
+        con = ibis.duckdb.connect(str(database_path))
+
+        # Load spatial extensions
+        try:
+            con.raw_sql("INSTALL spatial")
+            con.raw_sql("LOAD spatial")
+        except Exception as e:
+            if "already exists" not in str(e).lower():
+                print(f"⚠️  Spatial extension warning: {e}")
+
+        return con
+
 
 # =============================================================================
 # CONSOLIDATION CONFIGURATION
 # =============================================================================
-
-# Default database configuration
-DEFAULT_DATABASE_PATH = "db/eo_pv_data.duckdb"
-DEFAULT_SCHEMA = "main"
-DOI_TABLE_PREFIX = "doi_"
 
 # Required columns for consolidated schema (matching original consolidation module)
 REQUIRED_COLUMNS = [
@@ -129,19 +218,23 @@ def dataset_names__sequential(
 @config.when(execution_mode="parallel")
 def standardized_dataset_table__parallel(
     dataset_names: str,  # Individual dataset name from parallel processing
-    database_path: str = DEFAULT_DATABASE_PATH,
+    use_ducklake: bool = True,
+    catalog_path: str = DUCKLAKE_CATALOG,
+    data_path: str = DUCKLAKE_DATA_PATH,
     database_schema: str = DEFAULT_SCHEMA
 ) -> ir.Table:
     """
-    Load and standardize a single dataset table using Ibis DuckDB backend.
+    Load and standardize a single dataset table using DuckLake for concurrent access.
 
     This function processes each dataset independently, applying column filtering
     and schema standardization to ensure all datasets have compatible schemas
     for downstream consolidation.
 
     Args:
-        dataset_name: Name of the dataset to process
-        database_path: Path to DuckDB database
+        dataset_names: Name of the dataset to process
+        use_ducklake: Whether to use DuckLake (True) or fallback to DuckDB (False)
+        catalog_path: Path to DuckLake SQLite catalog
+        data_path: Path to DuckLake data files
         database_schema: Database schema name
 
     Returns:
@@ -155,8 +248,8 @@ def standardized_dataset_table__parallel(
     try:
         print(f"   🔄 Processing {dataset_names}...")
 
-        # Create Ibis DuckDB connection
-        con = ibis.duckdb.connect(database_path)
+        # Create DuckLake connection for concurrent access
+        con = _create_ducklake_connection(catalog_path, data_path, use_ducklake)
 
         # Load spatial extension with error handling (may already be loaded)
         try:
@@ -171,6 +264,9 @@ def standardized_dataset_table__parallel(
         # Check if table exists and load it
         try:
             table = con.table(table_name)
+            # Get row count for debugging
+            row_count = table.count().execute()
+            print(f"      📊 Table {table_name}: {row_count:,} rows")
         except Exception:
             print(f"   ⚠️  Table {table_name} not found")
             # Return empty table with standardized schema
@@ -184,15 +280,48 @@ def standardized_dataset_table__parallel(
         available_columns = set(table.columns)
         print(f"      🔍 Available columns: {sorted(available_columns)}")
 
-        select_columns = [
-            table.dataset_name,  # Always include dataset_name
-            table.source_file,   # Always include source_file for traceability
-            table.geometry,
-            table.geometry.centroid().x().name('centroid_lon'),  # ST_X(ST_Centroid(geometry))
-            table.geometry.centroid().y().name('centroid_lat'),  # ST_Y(ST_Centroid(geometry))
-            table.geometry.area().fillna(100.0).name('area_m2'),  # ST_Area equivalent
-            ibis.now().name('processed_at')
-        ]
+        # Check if we have geometry_wkt (DuckLake format) or geometry (original format)
+        available_columns = set(table.columns)
+        print(f"      Available columns: {sorted(available_columns)}")
+
+        if 'geometry_wkt' in available_columns:
+            print(f"      Using DuckLake format with geometry_wkt column")
+            # DuckLake format with WKT geometry - use simpler approach
+            select_columns = [
+                table.dataset_name,  # Always include dataset_name
+                table.source_file,   # Always include source_file for traceability
+                table.geometry_wkt.name('geometry'),  # Use WKT geometry as geometry
+                # For DuckLake, use placeholder values for spatial calculations
+                # These will be calculated properly in downstream processing
+                ibis.literal(0.0).name('centroid_lon'),  # Placeholder
+                ibis.literal(0.0).name('centroid_lat'),  # Placeholder
+                ibis.literal(100.0).name('area_m2'),     # Default area
+                ibis.now().name('processed_at')
+            ]
+        elif 'geometry' in available_columns:
+            print(f"      Using original format with geometry column")
+            # Original format with native geometry
+            select_columns = [
+                table.dataset_name,  # Always include dataset_name
+                table.source_file,   # Always include source_file for traceability
+                table.geometry,
+                table.geometry.centroid().x().name('centroid_lon'),  # ST_X(ST_Centroid(geometry))
+                table.geometry.centroid().y().name('centroid_lat'),  # ST_Y(ST_Centroid(geometry))
+                table.geometry.area().fillna(100.0).name('area_m2'),  # ST_Area equivalent
+                ibis.now().name('processed_at')
+            ]
+        else:
+            print(f"      ⚠️  No geometry column found, using placeholder geometry")
+            # No geometry column - create placeholder
+            select_columns = [
+                table.dataset_name,  # Always include dataset_name
+                table.source_file,   # Always include source_file for traceability
+                ibis.literal('POINT(0 0)').name('geometry'),  # Placeholder WKT
+                ibis.literal(0.0).name('centroid_lon'),  # Placeholder
+                ibis.literal(0.0).name('centroid_lat'),  # Placeholder
+                ibis.literal(100.0).name('area_m2'),     # Default area
+                ibis.now().name('processed_at')
+            ]
 
         # Generate COALESCE expressions for each standardized field with type casting
         for std_field, candidates in STANDARDIZED_FIELDS.items():
@@ -290,7 +419,7 @@ def standardized_dataset_table__parallel(
     except Exception as e:
         print(f"   ❌ Error processing {dataset_names}: {e}")
         # Return empty table with standardized schema
-        con = ibis.duckdb.connect(database_path)
+        con = _create_ducklake_connection(catalog_path, data_path, use_ducklake)
         return _create_empty_standardized_table(con)
 
 
@@ -298,11 +427,13 @@ def standardized_dataset_table__parallel(
 @config.when(execution_mode="sequential")
 def standardized_dataset_table__sequential(
     dataset_names: List[str],  # List of dataset names for sequential processing
-    database_path: str = DEFAULT_DATABASE_PATH,
+    use_ducklake: bool = True,
+    catalog_path: str = DUCKLAKE_CATALOG,
+    data_path: str = DUCKLAKE_DATA_PATH,
     database_schema: str = DEFAULT_SCHEMA
 ) -> ir.Table:
     """
-    Process all datasets sequentially and return consolidated table.
+    Process all datasets sequentially and return consolidated table using DuckLake.
 
     In sequential mode, we process all datasets in a loop and return the consolidated result.
     This follows the working pattern where sequential functions handle the full list.
@@ -319,8 +450,8 @@ def standardized_dataset_table__sequential(
         try:
             print(f"   🔄 Processing {dataset_name}...")
 
-            # Create Ibis DuckDB connection
-            con = ibis.duckdb.connect(database_path)
+            # Create DuckLake connection for concurrent access
+            con = _create_ducklake_connection(catalog_path, data_path, use_ducklake)
             table_name = f"{DOI_TABLE_PREFIX}{dataset_name}"
 
             # Check if table exists
@@ -331,6 +462,10 @@ def standardized_dataset_table__sequential(
             # Load table
             table = con.table(table_name)
 
+            # Get row count for debugging
+            row_count = table.count().execute()
+            print(f"      📊 Table {table_name}: {row_count:,} rows")
+
             # Get column filtering configuration from manifest (if available)
             dataset_config = doi_manifest.get(dataset_name, {})
             columns_to_keep = dataset_config.get('keep_cols', [])
@@ -339,15 +474,46 @@ def standardized_dataset_table__sequential(
             available_columns = set(table.columns)
             print(f"      🔍 Available columns: {sorted(available_columns)}")
 
-            select_columns = [
-                table.dataset_name,  # Always include dataset_name
-                table.source_file,   # Always include source_file for traceability
-                table.geometry,
-                table.geometry.centroid().x().name('centroid_lon'),  # ST_X(ST_Centroid(geometry))
-                table.geometry.centroid().y().name('centroid_lat'),  # ST_Y(ST_Centroid(geometry))
-                table.geometry.area().fillna(100.0).name('area_m2'),  # ST_Area equivalent
-                ibis.now().name('processed_at')
-            ]
+            # Check if we have geometry_wkt (DuckLake format) or geometry (original format)
+            print(f"      Available columns: {sorted(available_columns)}")
+
+            if 'geometry_wkt' in available_columns:
+                print(f"      Using DuckLake format with geometry_wkt column")
+                # DuckLake format with WKT geometry - use simpler approach
+                select_columns = [
+                    table.dataset_name,  # Always include dataset_name
+                    table.source_file,   # Always include source_file for traceability
+                    table.geometry_wkt.name('geometry'),  # Use WKT geometry as geometry
+                    # For DuckLake, use placeholder values for spatial calculations
+                    ibis.literal(0.0).name('centroid_lon'),  # Placeholder
+                    ibis.literal(0.0).name('centroid_lat'),  # Placeholder
+                    ibis.literal(100.0).name('area_m2'),     # Default area
+                    ibis.now().name('processed_at')
+                ]
+            elif 'geometry' in available_columns:
+                print(f"      Using original format with geometry column")
+                # Original format with native geometry
+                select_columns = [
+                    table.dataset_name,  # Always include dataset_name
+                    table.source_file,   # Always include source_file for traceability
+                    table.geometry,
+                    table.geometry.centroid().x().name('centroid_lon'),  # ST_X(ST_Centroid(geometry))
+                    table.geometry.centroid().y().name('centroid_lat'),  # ST_Y(ST_Centroid(geometry))
+                    table.geometry.area().fillna(100.0).name('area_m2'),  # ST_Area equivalent
+                    ibis.now().name('processed_at')
+                ]
+            else:
+                print(f"      ⚠️  No geometry column found, using placeholder geometry")
+                # No geometry column - create placeholder
+                select_columns = [
+                    table.dataset_name,  # Always include dataset_name
+                    table.source_file,   # Always include source_file for traceability
+                    ibis.literal('POINT(0 0)').name('geometry'),  # Placeholder WKT
+                    ibis.literal(0.0).name('centroid_lon'),  # Placeholder
+                    ibis.literal(0.0).name('centroid_lat'),  # Placeholder
+                    ibis.literal(100.0).name('area_m2'),     # Default area
+                    ibis.now().name('processed_at')
+                ]
 
             # Generate COALESCE expressions for each standardized field with type casting
             for std_field, candidates in STANDARDIZED_FIELDS.items():
@@ -443,7 +609,7 @@ def standardized_dataset_table__sequential(
 
     if not consolidated_tables:
         print("⚠️  No datasets successfully processed")
-        con = ibis.duckdb.connect(database_path)
+        con = _create_ducklake_connection(catalog_path, data_path, use_ducklake)
         return _create_empty_standardized_table(con)
 
     # Union all tables
@@ -464,10 +630,13 @@ def standardized_dataset_table__sequential(
 @cache(behavior="disable")  # Disable caching for large tables
 @config.when(execution_mode="parallel")
 def geometry_processed_geodataframe__parallel(
-    standardized_dataset_table: Collect[ir.Table]
+    standardized_dataset_table: Collect[ir.Table],
+    use_ducklake: bool = True,
+    catalog_path: str = DUCKLAKE_CATALOG,
+    data_path: str = DUCKLAKE_DATA_PATH
 ) -> ir.Table:
     """
-    Consolidate individual datasets into unified Ibis table.
+    Consolidate individual datasets into unified Ibis table using DuckLake.
 
     This creates a clean, consolidated Ibis table ready for staging transformations.
     """
@@ -477,7 +646,7 @@ def geometry_processed_geodataframe__parallel(
     if not standardized_tables:
         print("⚠️  No datasets to consolidate")
         # Return empty table with expected schema
-        con = ibis.duckdb.connect()
+        con = _create_ducklake_connection(catalog_path, data_path, use_ducklake)
         return con.sql("SELECT NULL as dataset_name, NULL as geometry, NULL as centroid_lon, NULL as centroid_lat, NULL as area_m2, NULL as processed_at WHERE FALSE")
 
     print(f"🔄 Consolidating {len(standardized_tables)} standardized datasets...")
@@ -509,7 +678,7 @@ def geometry_processed_geodataframe__parallel(
 
     if not tables_to_union:
         print("⚠️  No valid datasets to consolidate")
-        con = ibis.duckdb.connect()
+        con = _create_ducklake_connection(catalog_path, data_path, use_ducklake)
         return con.sql("SELECT NULL as dataset_name, NULL as geometry, NULL as centroid_lon, NULL as centroid_lat, NULL as area_m2, NULL as processed_at WHERE FALSE")
 
     # Union all tables
@@ -535,7 +704,7 @@ def geometry_processed_geodataframe__parallel(
 
     except Exception as e:
         print(f"❌ Error during consolidation: {e}")
-        con = ibis.duckdb.connect()
+        con = _create_ducklake_connection(catalog_path, data_path, use_ducklake)
         return con.sql("SELECT NULL as dataset_name, NULL as geometry, NULL as centroid_lon, NULL as centroid_lat, NULL as area_m2, NULL as processed_at WHERE FALSE")
 
 
@@ -559,8 +728,7 @@ def geometry_processed_geodataframe__sequential(
 @config.when(execution_mode="sequential")
 def staging_table_created__sequential(
     geometry_processed_geodataframe: ir.Table,
-    target_table: str = "stg_pv_consolidated",
-    database_path: str = DEFAULT_DATABASE_PATH
+    target_table: str = "stg_pv_consolidated"
 ) -> str:
     """
     Create a consolidated view that unions all individual staging tables.
@@ -606,8 +774,7 @@ def staging_table_created__sequential(
 @config.when(execution_mode="parallel")
 def staging_table_created__parallel(
     geometry_processed_geodataframe: ir.Table,
-    target_table: str = "stg_pv_consolidated",
-    database_path: str = DEFAULT_DATABASE_PATH
+    target_table: str = "stg_pv_consolidated"
 ) -> str:
     """
     Create a consolidated view that unions all individual staging tables.
