@@ -30,6 +30,7 @@ sf-hamilton
 sf-hamilton[cli]
 h3-py>4.1.0
 ibis-framework[duckdb]
+ibis-framework[geospatial]
 ipyleaflet
 ipython
 ipywidgets

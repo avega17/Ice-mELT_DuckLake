@@ -91,13 +91,17 @@ def run_doi_pv_pipeline(
     enable_caching: bool = True,
     force_download: bool = False,
     cache_path: str = "./.hamilton_cache",
-    use_parallel: bool = True
+    use_parallel: bool = True,
+    export_path: str = None,
+    use_cloud_export: bool = False,
+    force_upload: bool = False,
+    use_ducklake: bool = True
 ) -> dict:
     """
     Run the complete DOI PV locations pipeline.
-    
+
     Args:
-        database_path: Path to DuckDB database
+        database_path: Path to DuckDB database or DuckLake connection string
         manifest_path: Path to DOI manifest file
         max_mb: Maximum download size in MB
         export_geoparquet: Whether to export GeoParquet files
@@ -105,13 +109,22 @@ def run_doi_pv_pipeline(
         force_download: Force re-download (triggers cache recomputation)
         cache_path: Path to Hamilton cache directory
         use_parallel: Whether to use parallel processing
-        
+        export_path: Path for GeoParquet export (local or cloud S3/R2 path)
+        use_cloud_export: Whether to use cloud export functionality
+        force_upload: Force upload even if files haven't changed
+        use_ducklake: Whether to use DuckLake catalog instead of regular DuckDB
+
     Returns:
         dict: Pipeline execution results
     """
     # Use environment variables or defaults for paths
     if database_path is None:
-        database_path = os.path.join(REPO_ROOT, "db", "eo_pv_data.duckdb")
+        if use_ducklake:
+            # Use DuckLake SQLite catalog by default
+            database_path = f"ducklake:sqlite:{os.path.join(REPO_ROOT, 'db', 'ducklake_catalog.sqlite')}"
+        else:
+            # Use regular DuckDB database
+            database_path = os.path.join(REPO_ROOT, "db", "eo_pv_data.duckdb")
 
     if manifest_path is None:
         manifest_path = INGEST_METADATA
@@ -120,7 +133,7 @@ def run_doi_pv_pipeline(
     if not Path(manifest_path).exists():
         raise FileNotFoundError(f"DOI manifest not found: {manifest_path}")
 
-    # Create configuration with execution mode
+    # Create configuration with execution mode and cloud support
     config = {
         "database_path": database_path,
         "manifest_path": manifest_path,
@@ -128,7 +141,11 @@ def run_doi_pv_pipeline(
         "export_geoparquet": export_geoparquet,
         "force_download": force_download,
         "cache_path": cache_path,
-        "execution_mode": "parallel" if use_parallel else "sequential"
+        "execution_mode": "parallel" if use_parallel else "sequential",
+        "export_path": export_path,
+        "use_cloud_export": use_cloud_export,
+        "force_upload": force_upload,
+        "use_ducklake": use_ducklake
     }
     
     # Create Hamilton driver
@@ -158,9 +175,24 @@ def main():
     parser.add_argument("--force-download", action="store_true", help="Force re-download")
     parser.add_argument("--cache-path", default="./.hamilton_cache", help="Cache directory")
     parser.add_argument("--sequential", action="store_true", help="Use sequential processing")
+    parser.add_argument("--cloud", action="store_true", help="Use cloud deployment (export to R2)")
+    parser.add_argument("--export-path", default=None, help="Custom export path (local or S3/R2 URL)")
+    parser.add_argument("--force-upload", action="store_true", help="Force upload even if files haven't changed")
+    parser.add_argument("--no-ducklake", action="store_true", help="Use regular DuckDB instead of DuckLake catalog")
     
     args = parser.parse_args()
     
+    # Configure cloud deployment
+    if args.cloud:
+        export_path = args.export_path or "s3://eo-pv-lakehouse/geoparquet/"
+        use_cloud_export = True
+        print(f"🌩️  Cloud deployment enabled - exporting to: {export_path}")
+    else:
+        export_path = args.export_path
+        use_cloud_export = False
+        if export_path:
+            print(f"📁 Custom export path: {export_path}")
+
     try:
         result = run_doi_pv_pipeline(
             database_path=args.database,
@@ -170,7 +202,11 @@ def main():
             enable_caching=not args.no_cache,
             force_download=args.force_download,
             cache_path=args.cache_path,
-            use_parallel=not args.sequential
+            use_parallel=not args.sequential,
+            export_path=export_path,
+            use_cloud_export=use_cloud_export,
+            force_upload=args.force_upload,
+            use_ducklake=not args.no_ducklake
         )
         
         print("✅ Pipeline completed successfully!")

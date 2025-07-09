@@ -1,8 +1,0 @@
-{
-  "catalog_type": "sqlite",
-  "catalog_path": "/Users/alejandovega/ice-mELT_ducklake/db/ducklake_catalog.sqlite",
-  "data_path": "/Users/alejandovega/ice-mELT_ducklake/db/ducklake_data",
-  "connection_string": "ducklake:sqlite:/Users/alejandovega/ice-mELT_ducklake/db/ducklake_catalog.sqlite",
-  "ibis_connect": "ibis.duckdb.connect(extensions=['ducklake'])",
-  "ibis_attach": "con.attach('ducklake:sqlite:/Users/alejandovega/ice-mELT_ducklake/db/ducklake_catalog.sqlite', options={'DATA_PATH': '/Users/alejandovega/ice-mELT_ducklake/db/ducklake_data'})"
-}

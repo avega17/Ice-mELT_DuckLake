@@ -2,6 +2,9 @@
 # ice-mELT DuckLake Project .gitignore
 # =============================================================================
 
+# contains actual cloud URIs
+cloud_deployment_ready.json
+
 # =============================================================================
 # SECRETS AND CREDENTIALS - NEVER COMMIT THESE
 # =============================================================================
@@ -17,6 +20,9 @@ eo-pv-elt/package-lock.yml
 # dbt Cloud credentials and profiles
 dbt_cloud.yml
 profiles.yml
+
+# Neon 
+.neon
 
 # API keys and tokens
 *.key

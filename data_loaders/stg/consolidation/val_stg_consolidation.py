@@ -39,7 +39,8 @@ load_dotenv()
 # Get repo root and database path from environment or use defaults
 # Use relative paths as they work better than absolute paths in this environment
 REPO_ROOT = str(Path(__file__).parent.parent.parent.parent)
-DATABASE_PATH = str(Path(__file__).parent.parent.parent.parent / "db" / "eo_pv_data.duckdb")
+# Default to DuckLake catalog for consistency with staging DAG
+DATABASE_PATH = f"ducklake:sqlite:{str(Path(__file__).parent.parent.parent.parent / 'db' / 'ducklake_catalog.sqlite')}"
 
 
 def create_hamilton_driver(
@@ -91,19 +92,38 @@ def create_hamilton_driver(
 def load_staging_config(args) -> dict:
     """
     Load configuration for staging transformations.
-    
+
     Args:
         args: Command line arguments
-        
+
     Returns:
         dict: Configuration dictionary
     """
-    
+
+    # Detect catalog type from database connection string
+    if args.database.startswith('ducklake:postgres:'):
+        # PostgreSQL catalog for cloud deployment
+        catalog_type = 'postgresql'
+        catalog_path = args.database  # Full PostgreSQL connection string
+        data_path = 's3://eo-pv-lakehouse/ducklake_data/'  # R2 cloud storage
+        print(f"🌩️  Detected PostgreSQL catalog for cloud deployment")
+        print(f"   📊 Catalog: PostgreSQL (connection details hidden)")
+        print(f"   ☁️  Data path: {data_path}")
+    else:
+        # SQLite catalog for local development
+        catalog_type = 'sqlite'
+        catalog_path = 'db/ducklake_catalog.sqlite'
+        data_path = 'db/ducklake_data'
+        print(f"💾 Detected SQLite catalog for local development")
+        print(f"   📊 Catalog: {catalog_path}")
+        print(f"   💽 Data path: {data_path}")
+
     config = {
         # DuckLake configuration for concurrent access
         'use_ducklake': True,
-        'catalog_path': 'db/ducklake_catalog.sqlite',
-        'data_path': 'db/ducklake_data',
+        'catalog_type': catalog_type,
+        'catalog_path': catalog_path,
+        'data_path': data_path,
 
         # Legacy database configuration (fallback)
         'database_path': args.database,
@@ -195,19 +215,26 @@ def run_staging_pipeline(config: dict, enable_caching: bool = True, use_parallel
                 table_name = result
                 print(f"   Created table: {table_name}")
 
-                # Verify the table exists in the database
+                # Verify the table exists in the database (use DuckLake connection)
                 try:
-                    import ibis
-                    con = ibis.duckdb.connect(config['database_path'])
+                    from dataflows.stg.consolidation.stg_doi_pv_consolidation import _create_ducklake_connection
+
+                    # Use the same DuckLake connection as the staging DAG
+                    con = _create_ducklake_connection(
+                        catalog_path=config['catalog_path'],
+                        data_path=config['data_path'],
+                        use_ducklake=config['use_ducklake'],
+                        catalog_type=config['catalog_type']
+                    )
 
                     if table_name in con.list_tables():
                         count = con.table(table_name).count().execute()
-                        print(f"   ✅ Verified in database: {count} records")
+                        print(f"   ✅ Verified in DuckLake catalog: {count} records")
                     else:
-                        print(f"   ❌ Table {table_name} not found in database")
+                        print(f"   ❌ Table {table_name} not found in DuckLake catalog")
 
                 except Exception as e:
-                    print(f"   ⚠️  Could not verify table in database: {e}")
+                    print(f"   ⚠️  Could not verify table in DuckLake catalog: {e}")
             else:
                 # Handle other result types
                 if hasattr(result, 'count') and hasattr(result, 'execute'):
@@ -236,9 +263,9 @@ def main():
     parser = argparse.ArgumentParser(description="Run DOI PV staging transformations")
     
     parser.add_argument(
-        '--database', 
+        '--database',
         default=DATABASE_PATH,
-        help='Path to DuckDB database file'
+        help='Path to DuckDB database file or DuckLake connection string'
     )
     
     parser.add_argument(

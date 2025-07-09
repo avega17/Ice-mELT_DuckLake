@@ -99,8 +99,14 @@ vars:
 on-run-start:
   - "INSTALL spatial"
   - "LOAD spatial"
+  - "INSTALL ducklake"
+  - "LOAD ducklake"
   - "INSTALL h3 FROM community"
   - "LOAD h3"
   # Note: geography extension temporarily commented out due to availability issues
   # - "INSTALL geography FROM community"
   # - "LOAD geography"
+
+  # Attach DuckLake catalog for staging tables (only if not already attached)
+  - "ATTACH IF NOT EXISTS 'ducklake:sqlite:{{ env_var('REPO_ROOT') }}/db/ducklake_catalog.sqlite' AS eo_pv_lakehouse (DATA_PATH '{{ env_var('REPO_ROOT') }}/db/ducklake_data/')"
+  - "USE eo_pv_lakehouse"

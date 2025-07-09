@@ -30,7 +30,9 @@ INGEST_METADATA = os.getenv('INGEST_METADATA', str(Path(__file__).parent.parent.
 DUCKLAKE_CATALOG = "db/ducklake_catalog.sqlite"
 DUCKLAKE_DATA_PATH = "db/ducklake_data"
 DEFAULT_SCHEMA = "main"
-DOI_TABLE_PREFIX = "doi_"
+
+# Standardized table prefix for consistency across local and cloud deployments
+RAW_TABLE_PREFIX = "raw_"
 
 # Legacy database path for backward compatibility
 DEFAULT_DATABASE_PATH = "db/eo_pv_data.duckdb"
@@ -40,21 +42,26 @@ DEFAULT_DATABASE_PATH = "db/eo_pv_data.duckdb"
 # DUCKLAKE CONNECTION HELPERS
 # =============================================================================
 
+
+
 def _create_ducklake_connection(
     catalog_path: str = DUCKLAKE_CATALOG,
     data_path: str = DUCKLAKE_DATA_PATH,
-    use_ducklake: bool = True
+    use_ducklake: bool = True,
+    catalog_type: str = "sqlite"
 ) -> ibis.BaseBackend:
     """
     Create Ibis connection to DuckLake using native Ibis DuckLake support.
 
     This uses the simplified Ibis DuckLake integration pattern from the documentation:
     https://emilsadek.com/blog/ducklake-ibis/
+    https://ducklake.select/docs/stable/duckdb/usage/choosing_a_catalog_database
 
     Args:
-        catalog_path: Path to SQLite catalog database
-        data_path: Path to DuckLake data files directory
+        catalog_path: Path to SQLite catalog database or PostgreSQL connection details
+        data_path: Path to DuckLake data files directory or cloud storage path
         use_ducklake: Whether to use DuckLake (True) or fallback to direct DuckDB (False)
+        catalog_type: Type of catalog database ("sqlite", "postgresql")
 
     Returns:
         Ibis connection to DuckLake or DuckDB
@@ -82,15 +89,93 @@ def _create_ducklake_connection(
         except Exception as e:
             print(f"⚠️  Community extension warning: {e}")
 
-        # Attach DuckLake using raw SQL (consistent with setup script)
-        ducklake_connection_string = f"ducklake:sqlite:{full_catalog_path}"
+        # Configure DuckLake connection based on catalog type
+        if catalog_type == "postgresql":
+            # PostgreSQL catalog for cloud deployment (Neon)
+            # Install postgres extension for DuckLake PostgreSQL support
+            try:
+                con.raw_sql("INSTALL postgres")
+                con.raw_sql("LOAD postgres")
+            except Exception as e:
+                if "already exists" not in str(e).lower():
+                    print(f"      ⚠️  PostgreSQL extension warning: {e}")
 
-        try:
-            # Use raw SQL to attach DuckLake with DATA_PATH
+            # Install and configure S3 extension for R2 cloud storage
+            try:
+                con.raw_sql("INSTALL httpfs")
+                con.raw_sql("LOAD httpfs")
+
+                # Configure R2 credentials from environment variables
+                r2_access_key = os.getenv('R2_ACCESS_KEY_ID')
+                r2_secret_key = os.getenv('R2_SECRET_KEY')
+                r2_account_id = os.getenv('CLOUDFLARE_ACCOUNT_ID')
+
+                if r2_access_key and r2_secret_key and r2_account_id:
+                    # Configure S3 settings for Cloudflare R2
+                    con.raw_sql(f"SET s3_access_key_id='{r2_access_key}'")
+                    con.raw_sql(f"SET s3_secret_access_key='{r2_secret_key}'")
+                    con.raw_sql(f"SET s3_endpoint='https://{r2_account_id}.r2.cloudflarestorage.com'")
+                    con.raw_sql("SET s3_use_ssl=true")
+                    con.raw_sql("SET s3_url_style='path'")
+                    print("✅ R2 cloud storage credentials configured")
+                else:
+                    print("⚠️  R2 credentials not found, using local storage")
+
+            except Exception as e:
+                print(f"⚠️  S3/R2 extension warning: {e}")
+
+            # Build PostgreSQL connection string from environment variables
+            pg_host = os.getenv('PGHOST')
+            pg_database = os.getenv('PGDATABASE')
+            pg_user = os.getenv('PGUSER')
+            pg_password = os.getenv('PGPASSWORD')
+            pg_port = os.getenv('PGPORT', '5432')
+
+            if not all([pg_host, pg_database, pg_user, pg_password]):
+                raise ValueError("PostgreSQL environment variables not configured: PGHOST, PGDATABASE, PGUSER, PGPASSWORD")
+
+            # DuckLake PostgreSQL connection string format
+            ducklake_connection_string = f"ducklake:postgres:dbname={pg_database} host={pg_host} port={pg_port} user={pg_user} password={pg_password} sslmode=require"
+
+            # Configure data path for cloud or local storage
+            if data_path.startswith('s3://'):
+                # Use S3-compatible R2 path directly
+                cloud_data_path = data_path
+                print(f"☁️  Using R2 cloud storage: {cloud_data_path}")
+            else:
+                # Check if R2 is configured and create cloud path
+                r2_account_id = os.getenv('CLOUDFLARE_ACCOUNT_ID')
+                if r2_account_id:
+                    # Default R2 bucket and path structure
+                    cloud_data_path = "s3://eo-pv-lakehouse/ducklake_data/"
+                    print(f"☁️  Using default R2 path: {cloud_data_path}")
+                else:
+                    # Fallback to local path for testing
+                    repo_root = Path(REPO_ROOT)
+                    full_data_path = repo_root / data_path
+                    full_data_path.mkdir(parents=True, exist_ok=True)
+                    cloud_data_path = str(full_data_path) + "/"
+                    print(f"💾 Using local storage: {cloud_data_path}")
+
+            print(f"🔗 Attaching DuckLake PostgreSQL: {pg_host}/{pg_database}")
+
+            attach_sql = f"""
+            ATTACH '{ducklake_connection_string}' AS eo_pv_lakehouse
+                (DATA_PATH '{cloud_data_path}');
+            """
+
+        else:
+            # SQLite catalog for local deployment (existing pattern)
+            ducklake_connection_string = f"ducklake:sqlite:{full_catalog_path}"
+            print(f"🔗 Attaching DuckLake SQLite: {ducklake_connection_string}")
+
             attach_sql = f"""
             ATTACH '{ducklake_connection_string}' AS eo_pv_lakehouse
                 (DATA_PATH '{full_data_path}/');
             """
+
+        try:
+            # Use raw SQL to attach DuckLake with DATA_PATH
             con.raw_sql(attach_sql)
             con.raw_sql("USE eo_pv_lakehouse")
             # install and load extensions
@@ -139,8 +224,6 @@ STANDARDIZED_FIELDS = {
     'capacity_mw': ['capacity_mw', 'power', 'capacity'],
     'install_date': ['install_date', 'installation_date', 'Date']
 }
-
-
 
 # Default CRS for spatial data
 DEFAULT_CRS = 'EPSG:4326'
@@ -221,7 +304,8 @@ def standardized_dataset_table__parallel(
     use_ducklake: bool = True,
     catalog_path: str = DUCKLAKE_CATALOG,
     data_path: str = DUCKLAKE_DATA_PATH,
-    database_schema: str = DEFAULT_SCHEMA
+    database_schema: str = DEFAULT_SCHEMA,
+    catalog_type: str = "sqlite"
 ) -> ir.Table:
     """
     Load and standardize a single dataset table using DuckLake for concurrent access.
@@ -243,13 +327,15 @@ def standardized_dataset_table__parallel(
     # Load manifest configuration
     with open(INGEST_METADATA, 'r') as f:
         doi_manifest = json.load(f)
-    table_name = f"{DOI_TABLE_PREFIX}{dataset_names}"
+
+    # Use standardized raw table prefix
+    table_name = f"{RAW_TABLE_PREFIX}{dataset_names}"
 
     try:
         print(f"   🔄 Processing {dataset_names}...")
 
         # Create DuckLake connection for concurrent access
-        con = _create_ducklake_connection(catalog_path, data_path, use_ducklake)
+        con = _create_ducklake_connection(catalog_path, data_path, use_ducklake, catalog_type)
 
         # Load spatial extension with error handling (may already be loaded)
         try:
@@ -299,17 +385,31 @@ def standardized_dataset_table__parallel(
                 ibis.now().name('processed_at')
             ]
         elif 'geometry' in available_columns:
-            print(f"      Using original format with geometry column")
-            # Original format with native geometry
-            select_columns = [
-                table.dataset_name,  # Always include dataset_name
-                table.source_file,   # Always include source_file for traceability
-                table.geometry,
-                table.geometry.centroid().x().name('centroid_lon'),  # ST_X(ST_Centroid(geometry))
-                table.geometry.centroid().y().name('centroid_lat'),  # ST_Y(ST_Centroid(geometry))
-                table.geometry.area().fillna(100.0).name('area_m2'),  # ST_Area equivalent
-                ibis.now().name('processed_at')
-            ]
+            # Check if we're using DuckLake (WKT strings) or regular DuckDB (spatial types)
+            if use_ducklake:
+                print(f"      Using DuckLake format with WKT geometry strings")
+                # DuckLake: geometry column contains WKT strings, not spatial types
+                select_columns = [
+                    table.dataset_name,  # Always include dataset_name
+                    table.source_file,   # Always include source_file for traceability
+                    table.geometry,      # Keep WKT geometry as-is
+                    ibis.literal(0.0).name('centroid_lon'),  # Placeholder (can't compute from WKT easily)
+                    ibis.literal(0.0).name('centroid_lat'),  # Placeholder
+                    ibis.literal(100.0).name('area_m2'),     # Default area
+                    ibis.now().name('processed_at')
+                ]
+            else:
+                print(f"      Using regular DuckDB format with spatial geometry types")
+                # Regular DuckDB: geometry column contains spatial types
+                select_columns = [
+                    table.dataset_name,  # Always include dataset_name
+                    table.source_file,   # Always include source_file for traceability
+                    table.geometry,
+                    table.geometry.centroid().x().name('centroid_lon'),  # ST_X(ST_Centroid(geometry))
+                    table.geometry.centroid().y().name('centroid_lat'),  # ST_Y(ST_Centroid(geometry))
+                    table.geometry.area().fillna(100.0).name('area_m2'),  # ST_Area equivalent
+                    ibis.now().name('processed_at')
+                ]
         else:
             print(f"      ⚠️  No geometry column found, using placeholder geometry")
             # No geometry column - create placeholder
@@ -419,7 +519,7 @@ def standardized_dataset_table__parallel(
     except Exception as e:
         print(f"   ❌ Error processing {dataset_names}: {e}")
         # Return empty table with standardized schema
-        con = _create_ducklake_connection(catalog_path, data_path, use_ducklake)
+        con = _create_ducklake_connection(catalog_path, data_path, use_ducklake, catalog_type)
         return _create_empty_standardized_table(con)
 
 
@@ -430,7 +530,8 @@ def standardized_dataset_table__sequential(
     use_ducklake: bool = True,
     catalog_path: str = DUCKLAKE_CATALOG,
     data_path: str = DUCKLAKE_DATA_PATH,
-    database_schema: str = DEFAULT_SCHEMA
+    database_schema: str = DEFAULT_SCHEMA,
+    catalog_type: str = "sqlite"
 ) -> ir.Table:
     """
     Process all datasets sequentially and return consolidated table using DuckLake.
@@ -451,8 +552,10 @@ def standardized_dataset_table__sequential(
             print(f"   🔄 Processing {dataset_name}...")
 
             # Create DuckLake connection for concurrent access
-            con = _create_ducklake_connection(catalog_path, data_path, use_ducklake)
-            table_name = f"{DOI_TABLE_PREFIX}{dataset_name}"
+            con = _create_ducklake_connection(catalog_path, data_path, use_ducklake, catalog_type)
+
+            # Use standardized raw table prefix
+            table_name = f"{RAW_TABLE_PREFIX}{dataset_name}"
 
             # Check if table exists
             if table_name not in con.list_tables():
@@ -491,17 +594,31 @@ def standardized_dataset_table__sequential(
                     ibis.now().name('processed_at')
                 ]
             elif 'geometry' in available_columns:
-                print(f"      Using original format with geometry column")
-                # Original format with native geometry
-                select_columns = [
-                    table.dataset_name,  # Always include dataset_name
-                    table.source_file,   # Always include source_file for traceability
-                    table.geometry,
-                    table.geometry.centroid().x().name('centroid_lon'),  # ST_X(ST_Centroid(geometry))
-                    table.geometry.centroid().y().name('centroid_lat'),  # ST_Y(ST_Centroid(geometry))
-                    table.geometry.area().fillna(100.0).name('area_m2'),  # ST_Area equivalent
-                    ibis.now().name('processed_at')
-                ]
+                # Check if we're using DuckLake (WKT strings) or regular DuckDB (spatial types)
+                if use_ducklake:
+                    print(f"      Using DuckLake format with WKT geometry strings")
+                    # DuckLake: geometry column contains WKT strings, not spatial types
+                    select_columns = [
+                        table.dataset_name,  # Always include dataset_name
+                        table.source_file,   # Always include source_file for traceability
+                        table.geometry,      # Keep WKT geometry as-is
+                        ibis.literal(0.0).name('centroid_lon'),  # Placeholder (can't compute from WKT easily)
+                        ibis.literal(0.0).name('centroid_lat'),  # Placeholder
+                        ibis.literal(100.0).name('area_m2'),     # Default area
+                        ibis.now().name('processed_at')
+                    ]
+                else:
+                    print(f"      Using regular DuckDB format with spatial geometry types")
+                    # Regular DuckDB: geometry column contains spatial types
+                    select_columns = [
+                        table.dataset_name,  # Always include dataset_name
+                        table.source_file,   # Always include source_file for traceability
+                        table.geometry,
+                        table.geometry.centroid().x().name('centroid_lon'),  # ST_X(ST_Centroid(geometry))
+                        table.geometry.centroid().y().name('centroid_lat'),  # ST_Y(ST_Centroid(geometry))
+                        table.geometry.area().fillna(100.0).name('area_m2'),  # ST_Area equivalent
+                        ibis.now().name('processed_at')
+                    ]
             else:
                 print(f"      ⚠️  No geometry column found, using placeholder geometry")
                 # No geometry column - create placeholder
@@ -524,7 +641,7 @@ def standardized_dataset_table__sequential(
                         # Cast to string for ID and text fields
                         coalesce_expr = table[present_candidates[0]].cast('string')
                         for col in present_candidates[1:]:
-                            coalesce_expr = coalesce_expr.fillna(table[col].cast('string'))
+                            coalesce_expr = coalesce_expr.fill_null(table[col].cast('string'))
                         select_columns.append(coalesce_expr.name(std_field))
                     elif std_field in ['source_area_m2', 'capacity_mw']:
                         # Cast to float64 for numeric fields, handling None/NULL values
@@ -609,7 +726,7 @@ def standardized_dataset_table__sequential(
 
     if not consolidated_tables:
         print("⚠️  No datasets successfully processed")
-        con = _create_ducklake_connection(catalog_path, data_path, use_ducklake)
+        con = _create_ducklake_connection(catalog_path, data_path, use_ducklake, catalog_type)
         return _create_empty_standardized_table(con)
 
     # Union all tables
@@ -633,7 +750,8 @@ def geometry_processed_geodataframe__parallel(
     standardized_dataset_table: Collect[ir.Table],
     use_ducklake: bool = True,
     catalog_path: str = DUCKLAKE_CATALOG,
-    data_path: str = DUCKLAKE_DATA_PATH
+    data_path: str = DUCKLAKE_DATA_PATH,
+    catalog_type: str = "sqlite"
 ) -> ir.Table:
     """
     Consolidate individual datasets into unified Ibis table using DuckLake.
@@ -646,7 +764,7 @@ def geometry_processed_geodataframe__parallel(
     if not standardized_tables:
         print("⚠️  No datasets to consolidate")
         # Return empty table with expected schema
-        con = _create_ducklake_connection(catalog_path, data_path, use_ducklake)
+        con = _create_ducklake_connection(catalog_path, data_path, use_ducklake, catalog_type)
         return con.sql("SELECT NULL as dataset_name, NULL as geometry, NULL as centroid_lon, NULL as centroid_lat, NULL as area_m2, NULL as processed_at WHERE FALSE")
 
     print(f"🔄 Consolidating {len(standardized_tables)} standardized datasets...")
@@ -678,7 +796,7 @@ def geometry_processed_geodataframe__parallel(
 
     if not tables_to_union:
         print("⚠️  No valid datasets to consolidate")
-        con = _create_ducklake_connection(catalog_path, data_path, use_ducklake)
+        con = _create_ducklake_connection(catalog_path, data_path, use_ducklake, catalog_type)
         return con.sql("SELECT NULL as dataset_name, NULL as geometry, NULL as centroid_lon, NULL as centroid_lat, NULL as area_m2, NULL as processed_at WHERE FALSE")
 
     # Union all tables
@@ -704,7 +822,7 @@ def geometry_processed_geodataframe__parallel(
 
     except Exception as e:
         print(f"❌ Error during consolidation: {e}")
-        con = _create_ducklake_connection(catalog_path, data_path, use_ducklake)
+        con = _create_ducklake_connection(catalog_path, data_path, use_ducklake, catalog_type)
         return con.sql("SELECT NULL as dataset_name, NULL as geometry, NULL as centroid_lon, NULL as centroid_lat, NULL as area_m2, NULL as processed_at WHERE FALSE")
 
 

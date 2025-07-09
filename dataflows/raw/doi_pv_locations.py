@@ -475,11 +475,13 @@ def collected_arrow_tables__sequential(
 @config.when(execution_mode="parallel")
 def pipeline_result__parallel(
     collected_arrow_tables: List[pa.Table],  # Reference base name, not suffixed version
-    database_path: str = "db/eo_pv_data.duckdb",
-    export_geoparquet: bool = True
+    database_path: str = "ducklake:sqlite:db/ducklake_catalog.sqlite",
+    export_geoparquet: bool = True,
+    export_path: str = None,
+    use_cloud_export: bool = False
 ) -> Dict[str, Any]:
-    """Save arrow tables to DuckDB and optionally export to GeoParquet (parallel mode)."""
-    return _storage_result(collected_arrow_tables, database_path, export_geoparquet)
+    """Save arrow tables to DuckLake catalog and optionally export to GeoParquet (parallel mode)."""
+    return _storage_result(collected_arrow_tables, database_path, export_geoparquet, export_path, use_cloud_export)
 
 
 @tag(stage="storage", data_type="result", execution_mode="sequential")
@@ -487,8 +489,10 @@ def pipeline_result__parallel(
 @config.when(execution_mode="sequential")
 def pipeline_result__sequential(
     collected_arrow_tables: List[pa.Table],  # Reference base name, not suffixed version
-    database_path: str = "db/eo_pv_data.duckdb",
-    export_geoparquet: bool = True
+    database_path: str = "ducklake:sqlite:db/ducklake_catalog.sqlite",
+    export_geoparquet: bool = True,
+    export_path: str = None,
+    use_cloud_export: bool = False
 ) -> Dict[str, Any]:
-    """Save arrow tables to DuckDB and optionally export to GeoParquet (sequential mode)."""
-    return _storage_result(collected_arrow_tables, database_path, export_geoparquet)
+    """Save arrow tables to DuckLake catalog and optionally export to GeoParquet (sequential mode)."""
+    return _storage_result(collected_arrow_tables, database_path, export_geoparquet, export_path, use_cloud_export)
