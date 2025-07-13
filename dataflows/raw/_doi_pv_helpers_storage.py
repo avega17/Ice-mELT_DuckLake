@@ -216,23 +216,13 @@ def _duckdb_table_from_geoarrow(
                 """)
                 print(f"   📍 Stored geometry as WKT strings for DuckLake compatibility")
             else:
-                # For regular DuckDB: Convert geometry to WKB then to DuckDB geometry
-                gdf_copy['geometry_wkb'] = gdf_copy.geometry.to_wkb()
-                gdf_copy = gdf_copy.drop(columns=['geometry'])
+                # For regular DuckDB: Convert geometry to WKB and store as geometry column
+                # Store WKB directly as geometry for consistent processing downstream
+                gdf_copy['geometry'] = gdf_copy.geometry.to_wkb()
 
-                # Create table with WKB geometry converted to DuckDB geometry
-                conn.execute(f"""
-                    CREATE TABLE {table_name} AS
-                    SELECT
-                        * EXCLUDE (geometry_wkb),
-                        CASE
-                            WHEN geometry_wkb IS NOT NULL
-                            THEN ST_GeomFromWKB(geometry_wkb)
-                            ELSE NULL
-                        END as geometry
-                    FROM gdf_copy
-                """)
-                print(f"   📍 Stored geometry as DuckDB spatial types")
+                # Create table with WKB geometry column (no conversion to spatial types)
+                conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM gdf_copy")
+                print(f"   📍 Stored geometry as WKB in geometry column")
         else:
             # No geometry column - simple table creation
             conn.execute(f"CREATE TABLE {table_name} AS SELECT * FROM gdf")
@@ -268,21 +258,11 @@ def _geoparquet_export(
         Path to the exported parquet file
     """
     parquet_file = output_dir / f"raw_{dataset_name}.parquet"
-
-    try:
-        # Try geoarrow-rs direct GeoParquet export (most efficient)
-        from geoarrow.rust.io import write_parquet
-        write_parquet(arrow_table, str(parquet_file))
-        print(f"   ✅ Exported {dataset_name} to GeoParquet using geoarrow-rs I/O")
-
-    except Exception as geoarrow_error:
-        print(f"   ⚠️  geoarrow-rs export failed: {geoarrow_error}, using GeoPandas fallback")
-
-        # Fallback: convert to GeoPandas and export
-        from geoarrow.rust.core import to_geopandas
-        gdf = to_geopandas(arrow_table)
-        gdf.to_parquet(parquet_file)
-        print(f"   ✅ Exported {dataset_name} to GeoParquet using GeoPandas fallback")
+    print(f"   📦 Exporting {dataset_name} to GeoParquet: {parquet_file}")
+    from geoarrow.rust.core import to_geopandas
+    gdf = to_geopandas(arrow_table)
+    gdf.to_parquet(parquet_file, geometry_encoding='WKB', compression='zstd', write_covering_bbox=True, schema_version='1.1.0')
+    print(f"   ✅ Exported to GeoParquet using GeoPandas")
 
     return str(parquet_file)
 
@@ -310,7 +290,7 @@ def _geoparquet_export_cloud(
     Returns:
         Path to the exported parquet file
     """
-    if use_cloud and output_path.startswith('s3://'):
+    if use_cloud and (output_path.startswith('s3://') or output_path.startswith('r2://')):
         # Cloud export using DuckDB S3 capabilities
         # Reference: https://duckdb.org/docs/stable/guides/network_cloud_storage/s3_export
         # Reference: https://duckdb.org/docs/stable/core_extensions/httpfs/s3api.html#writing
@@ -353,20 +333,32 @@ def _geoparquet_export_cloud(
             # Configure S3/R2 credentials
             r2_access_key = os.getenv('R2_ACCESS_KEY_ID')
             r2_secret_key = os.getenv('R2_SECRET_KEY')
-            r2_account_id = os.getenv('CLOUDFLARE_ACCOUNT_ID')
 
-            if not all([r2_access_key, r2_secret_key, r2_account_id]):
-                raise ValueError("Missing R2 credentials: R2_ACCESS_KEY_ID, R2_SECRET_KEY, CLOUDFLARE_ACCOUNT_ID")
+            if not all([r2_access_key, r2_secret_key]):
+                raise ValueError("Missing R2 credentials: R2_ACCESS_KEY_ID, R2_SECRET_KEY")
 
             # Configure DuckDB S3 settings for Cloudflare R2
             # Reference: https://duckdb.org/docs/stable/core_extensions/httpfs/s3api.html#configuration
 
-            # Use S3 API endpoint with credentials (standard approach)
+            # Use S3 API endpoint with credentials (DuckDB S3 format)
             conn.execute(f"SET s3_access_key_id='{r2_access_key}'")
             conn.execute(f"SET s3_secret_access_key='{r2_secret_key}'")
-            conn.execute(f"SET s3_endpoint='{r2_account_id}.r2.cloudflarestorage.com'")  # No https:// prefix
-            conn.execute("SET s3_use_ssl=true")
-            conn.execute("SET s3_url_style='path'")
+            # Create R2 SECRET for DuckDB export (same as raw models)
+            r2_account_id = os.getenv('CLOUDFLARE_ACCOUNT_ID')
+            if r2_account_id:
+                conn.execute(f"""
+                    CREATE OR REPLACE SECRET r2_export_secret (
+                        TYPE r2,
+                        KEY_ID '{r2_access_key}',
+                        SECRET '{r2_secret_key}',
+                        ACCOUNT_ID '{r2_account_id}',
+                        REGION 'auto'
+                    )
+                """)
+                print("   ✅ R2 SECRET created for export")
+            else:
+                print("   ⚠️  CLOUDFLARE_ACCOUNT_ID required for R2 SECRET")
+            # R2 SECRET handles all configuration automatically
 
             cloud_file_path = f"{output_path.rstrip('/')}/raw_{dataset_name}.parquet"
 
@@ -425,21 +417,46 @@ def _geoparquet_export_cloud(
                 table_size_mb = 0  # Set default for upload speed calculation
 
             # Register Arrow table in DuckDB
-            conn.register('temp_table', arrow_table)
+            # conn.register('temp_table', arrow_table) not needed - duckdb supports directly reading Arrow and dataframe tables
 
             print(f"   🌩️  Uploading to R2: {cloud_file_path}")
 
-            # Use DuckDB's native S3 export with proper format and compression
-            # Reference: https://duckdb.org/docs/stable/guides/network_cloud_storage/s3_export
-            export_sql = f"""
-            COPY temp_table TO '{cloud_file_path}'
-            (FORMAT 'parquet', COMPRESSION 'zstd')
-            """
+            # Fix: Write to temp file first with correct WKB geometry encoding
+            # This ensures DuckDB can read the geometry properly (not GeoArrow binary)
+            import tempfile
+            import os
+            try:
+                from geoarrow.rust.core import to_geopandas
+            except ImportError:
+                print("   ⚠️  geoarrow.rust.core not available") 
+            else:
+                # Use temp file approach with proper WKB encoding
+                with tempfile.NamedTemporaryFile(suffix='.parquet', delete=False) as temp_file:
+                    temp_path = temp_file.name
 
-            # Time the upload
-            start_time = time.time()
-            conn.execute(export_sql)
-            upload_time = time.time() - start_time
+                    # Convert to GeoPandas and export with WKB encoding (same as local export)
+                    gdf = to_geopandas(arrow_table)
+                    gdf.to_parquet(
+                        temp_path,
+                        geometry_encoding='WKB',
+                        compression='zstd',
+                        write_covering_bbox=True,
+                        schema_version='1.1.0'
+                    )
+
+                    # Now upload the properly encoded file using DuckDB
+                    export_sql = f"""
+                    COPY (SELECT * FROM read_parquet('{temp_path}')) TO '{cloud_file_path}'
+                    (FORMAT 'parquet', COMPRESSION 'zstd')
+                    """
+
+                    # Time the upload
+                    start_time = time.time()
+                    conn.execute(export_sql)
+                    upload_time = time.time() - start_time
+
+                    # Clean up temp file
+                    os.unlink(temp_path)
 
             # Calculate upload speed
             upload_speed_mbps = table_size_mb / upload_time if upload_time > 0 else 0
@@ -457,7 +474,7 @@ def _geoparquet_export_cloud(
             # Fall through to local export only if not explicitly using cloud
 
     # Local export (existing functionality)
-    if output_path and output_path.startswith('s3://'):
+    if output_path and (output_path.startswith('s3://') or output_path.startswith('r2://')):
         # If cloud path provided but we reached here, cloud export failed
         if use_cloud:
             # During cloud deployment, don't fall back to local - this could hide issues

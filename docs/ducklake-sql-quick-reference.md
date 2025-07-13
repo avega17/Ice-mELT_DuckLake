@@ -22,9 +22,13 @@ duckdb
 INSTALL ducklake;
 LOAD ducklake;
 
--- Attach your DuckLake catalog
+-- Attach your DuckLake catalog (local development)
 ATTACH 'ducklake:sqlite:db/ducklake_catalog.sqlite' AS eo_pv_lakehouse
-    (DATA_PATH 'db/ducklake_data/');
+    (DATA_PATH 'db/ducklake_data');
+
+-- For production (MotherDuck + Neon PostgreSQL)
+-- ATTACH 'ducklake:postgresql://user:pass@host/db' AS eo_pv_lakehouse
+--     (DATA_PATH 'r2://bucket-name/');
 
 -- Switch to DuckLake database
 USE eo_pv_lakehouse;
@@ -35,26 +39,43 @@ USE eo_pv_lakehouse;
 -- List all tables
 SHOW TABLES;
 
+-- Available tables:
+-- Raw layer: raw_uk_crowdsourced_pv_2020, raw_chn_med_res_pv_2024, etc.
+-- Staging layer: stg_uk_crowdsourced_pv_2020, stg_chn_med_res_pv_2024, etc.
+-- Consolidated: stg_pv_consolidated
+-- Prepared: prepared_dedup_h3_pv_locations
+
 -- Describe table structure
 DESCRIBE stg_pv_consolidated;
 
 -- Quick row count
-SELECT COUNT(*) FROM stg_pv_consolidated;
+SELECT COUNT(*) FROM stg_pv_consolidated;  -- Expected: 443,917+ records
 
--- Sample data
-SELECT * FROM stg_pv_consolidated LIMIT 5;
+-- Sample data with H3 indexing
+SELECT
+    dataset_name,
+    LEFT(geometry, 50) || '...' as geometry_sample,
+    area_m2,
+    centroid_lat,
+    centroid_lon,
+    h3_index_12,
+    processed_at
+FROM stg_pv_consolidated
+LIMIT 5;
 ```
 
 ## 📊 Data Analysis Queries
 
 ### Dataset Overview
 ```sql
--- Records per dataset
-SELECT 
+-- Records per dataset with H3 indexing stats
+SELECT
     dataset_name,
     COUNT(*) as record_count,
     ROUND(AVG(area_m2), 2) as avg_area_m2,
-    ROUND(SUM(area_m2), 2) as total_area_m2
+    ROUND(SUM(area_m2), 2) as total_area_m2,
+    COUNT(h3_index_12) as with_h3_index,
+    COUNT(*) - COUNT(h3_index_12) as missing_h3_index
 FROM stg_pv_consolidated
 GROUP BY dataset_name
 ORDER BY record_count DESC;
@@ -103,6 +124,29 @@ ORDER BY avg_area;
 
 ## 🗺️ Spatial Queries
 
+### H3 Spatial Indexing
+```sql
+-- Query by H3 index for efficient spatial operations
+SELECT
+    dataset_name,
+    COUNT(*) as installations_in_h3_cell
+FROM stg_pv_consolidated
+WHERE h3_index_12 = 631243922309816319  -- Example H3 index
+GROUP BY dataset_name;
+
+-- Find H3 cells with multiple installations (potential duplicates)
+SELECT
+    h3_index_12,
+    COUNT(*) as installations_count,
+    COUNT(DISTINCT dataset_name) as datasets_count
+FROM stg_pv_consolidated
+WHERE h3_index_12 IS NOT NULL
+GROUP BY h3_index_12
+HAVING installations_count > 1
+ORDER BY installations_count DESC
+LIMIT 10;
+```
+
 ### Regional Filtering
 ```sql
 -- UK/Ireland region (approximate)
@@ -129,23 +173,48 @@ GROUP BY dataset_name;
 
 ### Geometry Analysis
 ```sql
--- Sample WKT geometries
-SELECT 
+-- Sample WKT geometries with spatial stats
+SELECT
     dataset_name,
     LEFT(geometry, 50) || '...' as geometry_sample,
-    area_m2
+    area_m2,
+    centroid_lat,
+    centroid_lon,
+    h3_index_12
 FROM stg_pv_consolidated
 WHERE geometry IS NOT NULL
 LIMIT 10;
 
--- Check for missing spatial data
-SELECT 
+-- Check for missing spatial data and H3 indexing
+SELECT
     dataset_name,
     COUNT(*) as total_records,
     COUNT(geometry) as with_geometry,
-    COUNT(*) - COUNT(geometry) as missing_geometry
+    COUNT(h3_index_12) as with_h3_index,
+    COUNT(*) - COUNT(geometry) as missing_geometry,
+    COUNT(*) - COUNT(h3_index_12) as missing_h3_index
 FROM stg_pv_consolidated
 GROUP BY dataset_name;
+```
+
+### Spatial Deduplication Analysis
+```sql
+-- Check the prepared deduplicated table
+SELECT
+    COUNT(*) as deduplicated_count,
+    COUNT(DISTINCT dataset_name) as datasets_count
+FROM prepared_dedup_h3_pv_locations;
+
+-- Compare before and after deduplication
+SELECT
+    'Before Deduplication' as stage,
+    COUNT(*) as record_count
+FROM stg_pv_consolidated
+UNION ALL
+SELECT
+    'After Deduplication' as stage,
+    COUNT(*) as record_count
+FROM prepared_dedup_h3_pv_locations;
 ```
 
 ## 📤 Data Export
@@ -309,4 +378,9 @@ SELECT MAX(processed_at) FROM stg_pv_consolidated;
 
 ---
 
-**Note**: This DuckLake instance contains **443,917+ PV installation records** from 7 DOI datasets, processed through the Hamilton + dbt-ibis pipeline. All geometry data is stored in WKT format for DuckLake compatibility.
+**Note**: This DuckLake instance contains **443,917+ PV installation records** from 6 DOI datasets, processed through the Hamilton + dbt Python model pipeline. Features include:
+- **H3 spatial indexing** at resolution 12 for efficient spatial operations
+- **Spatial deduplication** using H3-based overlap detection
+- **Geometry statistics** including area calculations and centroid coordinates
+- **WKT geometry format** for DuckLake compatibility
+- **Cloud deployment** with MotherDuck + Cloudflare R2 + Neon PostgreSQL

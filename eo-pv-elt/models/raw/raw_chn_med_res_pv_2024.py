@@ -1,81 +1,99 @@
-import os
-import json
-import ibis
+"""
+dbt Python raw model for China Medium Resolution PV 2024 dataset.
+"""
 
 def model(dbt, session):
-    """
-    Raw China Medium Resolution PV 2024 dataset.
-    Simple Python model that reads GeoParquet and adds basic metadata.
-    """
+    import os
+    import json
+    import pandas as pd
+    from dotenv import load_dotenv
     
-    # Dataset identification
+    load_dotenv()
+    print("🚀 dbt Python raw: Loading China Medium Resolution PV 2024...")
+
+    dbt.config(materialized='table', indexes=[{'columns': ['dataset_name'], 'type': 'btree'}])
+
     dataset_name = "chn_med_res_pv_2024"
-
-    # Read metadata from doi_manifest.json
     repo_root = os.getenv('REPO_ROOT', '.')
-    manifest_path = f"{repo_root}/data_loaders/doi_manifest.json"
-
-    with open(manifest_path, 'r') as f:
+    
+    # NOTE: we could simplify this to a quite brief sql model if we get dbt target detection working and use a dbt seed for the doi metadata
+    with open(f"{repo_root}/data_loaders/doi_manifest.json", 'r') as f:
         manifest = json.load(f)
-
-    if dataset_name not in manifest:
-        raise ValueError(f"Dataset '{dataset_name}' not found in doi_manifest.json")
-
+    
     dataset_metadata = manifest[dataset_name]
 
-    # Determine file path based on dbt target
-    # Check if we're running against prod target by examining the connection
-    try:
-        # Connect to see what database we're using
-        con = ibis.duckdb.connect()
-        current_db = con.raw_sql("SELECT current_database()").fetchone()[0]
-        is_prod_target = 'md:' in str(current_db) or 'motherduck' in str(current_db).lower()
-        print(f"   🔍 Current database: {current_db}")
-        print(f"   🎯 Target detected: {'PROD' if is_prod_target else 'DEV'}")
-    except Exception as e:
-        # Fallback: check environment variables
-        print(f"   ⚠️  Could not detect target from database: {e}")
-        motherduck_token = os.getenv('MOTHERDUCK_TOKEN', '')
-        is_prod_target = bool(motherduck_token)
-        print(f"   🎯 Target fallback: {'PROD' if is_prod_target else 'DEV'} (based on MOTHERDUCK_TOKEN)")
+    # Multiple methods to detect target
+    target_name = os.getenv('DBT_TARGET', 'dev')
+    bucket_name = os.getenv('DUCKLAKE_NAME', 'eo_pv_lakehouse').replace('_', '-')
 
-    if is_prod_target:
-        # Production: Read from R2 cloud storage
-        r2_public_url = os.getenv('R2_PUBLIC_URL')
-        if not r2_public_url:
-            raise ValueError("R2_PUBLIC_URL environment variable required for prod target")
-        file_path = f"{r2_public_url}/geoparquet/raw_{dataset_name}.parquet"
-        print(f"📊 Loading dataset: {dataset_name} (PROD - R2 Cloud)")
+    # Alternative: Check if we're connected to MotherDuck
+    db_name = str(session.execute("SELECT current_database()").fetchone()[0])
+    print(f"   🌱 Connected to database: {db_name}")
+    if db_name.startswith('md:') or 'motherduck' in db_name.lower():
+        target_name = 'prod'
+        print(f"   🎯 Target detected via MotherDuck connection: {target_name}")
     else:
-        # Development: Read from local files
-        gpq_export_path = os.getenv('GPQ_EXPORT_PATH', 'db/geoparquet')
-        file_path = f"{gpq_export_path}/raw_{dataset_name}.parquet"
-        print(f"📊 Loading dataset: {dataset_name} (DEV - Local)")
+        print(f"   🎯 Target from DBT_TARGET env var: {target_name}")
 
+    # Use GEOPARQUET_SOURCE_PATH which is set by target scripts
+    # For prod: Use r2:// syntax for Cloudflare R2; For dev: /Users/.../db/geoparquet
+    source_path = os.getenv('GEOPARQUET_SOURCE_PATH')         
+    file_path = f"{source_path}/raw_{dataset_name}.parquet"
+    is_prod_target = target_name == 'prod' or file_path.startswith('r2://') or file_path.startswith('s3://')
+
+    print(f"   🎯 dbt target: {target_name}")
     print(f"   📁 File: {file_path}")
-    print(f"   📄 DOI: {dataset_metadata.get('doi', 'N/A')}")
 
-    # Connect to DuckDB
-    con = ibis.duckdb.connect()
+    # Install and load required extensions
+    session.execute("INSTALL spatial; LOAD spatial")
 
-    # Install spatial extension for GeoParquet support
-    con.raw_sql("INSTALL spatial")
-    con.raw_sql("LOAD spatial")
+    # For S3 access, configure Cloudflare R2 settings
+    if is_prod_target:
+        session.execute("INSTALL httpfs; LOAD httpfs")
+        print(f"   🌐 Loaded httpfs extension for S3 access")
 
-    # Read the GeoParquet file
-    df = con.read_parquet(file_path)
+        # Create R2 SECRET for DuckDB r2:// syntax
+        # Reference: https://duckdb.org/docs/stable/guides/network_cloud_storage/cloudflare_r2_import.html
+        r2_access_key = os.getenv('R2_ACCESS_KEY_ID')
+        r2_secret_key = os.getenv('R2_SECRET_KEY')
+        r2_account_id = os.getenv('CLOUDFLARE_ACCOUNT_ID')
 
-    # Add dataset metadata columns from manifest
-    df = df.mutate(
-        dataset_name=ibis.literal(dataset_name),
-        doi=ibis.literal(dataset_metadata.get('doi', None)),
-        repo=ibis.literal(dataset_metadata.get('repo', None)),
-        paper_doi=ibis.literal(dataset_metadata.get('paper_doi', None)),
-        paper_title=ibis.literal(dataset_metadata.get('paper_title', None)),
-        dbt_loaded_at=ibis.now()
-    )
-    
-    print(f"   ✅ Loaded {df.count().execute():,} records")
-    print(f"   📋 Columns: {len(df.columns)}")
-    
+        # Create local (temporary) R2 secret for this session
+        secret_name = f"r2_{target_name}_secret"
+        session.execute(f"""
+            CREATE OR REPLACE SECRET {secret_name} (
+                TYPE r2,
+                KEY_ID '{r2_access_key}',
+                SECRET '{r2_secret_key}',
+                ACCOUNT_ID '{r2_account_id}'
+            )
+        """)
+
+        print(f"   ✅ R2 SECRET '{secret_name}' created for r2:// syntax")
+        secrets_result = session.execute("SELECT name, type FROM duckdb_secrets() WHERE type = 'r2'").fetchall()
+        print(f"   🔍 Available R2 secrets: {[row[0] for row in secrets_result]}")
+
+    # Read the GeoParquet file using DuckDB's native support
+    # Include both WKT and WKB geometry formats for flexibility
+    geometry_parse = "ST_GeomFromWKB(geometry)" if is_prod_target else "geometry"
+    query = f"""
+        SELECT * EXCLUDE (geometry),
+            ST_AsText({geometry_parse}) as geometry_wkt,
+            ST_AsWKB({geometry_parse}) as geometry_wkb,
+            '{dataset_name}' as dataset_name,
+            '{dataset_metadata.get('doi', '')}' as doi,
+            '{dataset_metadata.get('repo', '')}' as repo,
+            '{dataset_metadata.get('paper_doi', '')}' as paper_doi,
+            '{dataset_metadata.get('paper_title', '')}' as paper_title,
+            CURRENT_TIMESTAMP as dbt_loaded_at
+        FROM read_parquet('{file_path}')
+        WHERE ST_IsValid({geometry_parse}) = true  -- Filter out invalid geometries
+    """
+
+    # Execute query and return DataFrame for dbt to materialize
+    print(f"   🚀 Executing query...:\n\n{query}\n\n")
+    result = session.execute(query)
+    df = result.df()
+    print(f"   ✅ Loaded {len(df):,}:  records")
+
     return df

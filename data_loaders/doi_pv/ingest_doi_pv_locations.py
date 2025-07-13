@@ -121,7 +121,7 @@ def run_doi_pv_pipeline(
     if database_path is None:
         if use_ducklake:
             # Use DuckLake SQLite catalog by default
-            database_path = f"ducklake:sqlite:{os.path.join(REPO_ROOT, 'db', 'ducklake_catalog.sqlite')}"
+            database_path = f"ducklake:sqlite:{os.path.relpath(os.path.join(REPO_ROOT, 'db', 'ducklake_catalog.sqlite'))}"
         else:
             # Use regular DuckDB database
             database_path = os.path.join(REPO_ROOT, "db", "eo_pv_data.duckdb")
@@ -184,7 +184,7 @@ def main():
     
     # Configure cloud deployment
     if args.cloud:
-        export_path = args.export_path or "s3://eo-pv-lakehouse/geoparquet/"
+        export_path = args.export_path or "r2://eo-pv-lakehouse/geoparquet/"
         use_cloud_export = True
         print(f"🌩️  Cloud deployment enabled - exporting to: {export_path}")
     else:
@@ -218,7 +218,7 @@ def main():
         
         if result['tables_created']:
             table_names = [table_info['table_name'] for table_info in result['tables_created']]
-            print(f"   🗂️  Tables: {', '.join(table_names)}")
+            print(f"   🗂️  Tables: \n - {'\n- '.join(table_names)}")
         
     except Exception as e:
         print(f"❌ Pipeline failed: {e}")

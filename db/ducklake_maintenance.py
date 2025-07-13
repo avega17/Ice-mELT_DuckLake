@@ -5,6 +5,10 @@ DuckLake Maintenance CLI
 A comprehensive command-line utility for maintaining DuckLake catalogs.
 Provides tools for snapshot management, file cleanup, and optimization.
 
+Note: This utility is designed for local SQLite catalogs (development).
+For production PostgreSQL catalogs (Neon), use cloud provider tools
+or database-specific maintenance procedures.
+
 Usage:
     python ducklake_maintenance.py --help
     python ducklake_maintenance.py snapshots --help
@@ -39,8 +43,8 @@ import duckdb
 
 
 # Configuration constants
-DEFAULT_CATALOG_PATH = "ducklake_catalog.sqlite"
-DEFAULT_DATA_PATH = "ducklake_data"
+DEFAULT_CATALOG_PATH = "db/ducklake_catalog.sqlite"
+DEFAULT_DATA_PATH = "db/ducklake_data"
 
 
 class DuckLakeManager:

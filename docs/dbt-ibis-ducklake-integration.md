@@ -146,7 +146,7 @@ LOAD ducklake;
 
 -- Attach DuckLake with SQLite catalog
 ATTACH 'ducklake:sqlite:db/ducklake_catalog.sqlite' AS eo_pv_lakehouse
-    (DATA_PATH 'db/ducklake_data/');
+    (DATA_PATH 'db/ducklake_data');
 
 -- Switch to DuckLake database
 USE eo_pv_lakehouse;

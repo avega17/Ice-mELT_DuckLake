@@ -1,10 +1,11 @@
 {
-    "h3": {"resolution_sqkm_map": [
-            4,250,546.8477000,
-            607,220.9782429,
-            86,745.8540347,
-            12,392.2648621,
-            1,770.3235517,
+    "h3": {
+        "resolution_sqkm_map": [
+            4250546.8477000,
+            607220.9782429,
+            86745.8540347,
+            12392.2648621,
+            1770.3235517,
             252.9033645,
             36.1290521,
             5.1612932,
@@ -16,7 +17,26 @@
             0.0000439,
             0.0000063,
             0.0000009
-    ]}
+        ],
+        "resolution_m2_map": [
+            4357449416078.392,
+            609788441794.134,
+            86801780398.997,
+            12393434655.088,
+            1770347654.491,
+            252903858.182,
+            36129062.164,
+            5161293.360,
+            737327.598,
+            105332.513,
+            15047.502,
+            2149.643,
+            307.092,
+            43.870,
+            6.267,
+            0.895
+        ]
+    }
     , "overture_divisions_area": {
         "s3_path": "s3://overturemaps-us-west-2/release/2025-03-19.0/theme=divisions/type=division_area/*.parquet"
         , "description": "Division areas are polygons that represent the land or maritime area covered by a division. Each division area belongs to a division which it references by ID, and for which the division area provides an area polygon. For ease of use, every division area repeats the subtype, names, country, and region properties of the division it belongs to."

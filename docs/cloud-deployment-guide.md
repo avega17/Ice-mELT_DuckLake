@@ -6,7 +6,7 @@ Complete guide for deploying the Ice-mELT DuckLake pipeline to cloud infrastruct
 - **Cloudflare R2** for object storage (S3-compatible)
 - **Neon PostgreSQL** for DuckLake catalog (serverless)
 - **MotherDuck** for cloud compute and analytics
-- **Hamilton + dbt-ibis** for data processing
+- **Hamilton + dbt Python models** for data processing
 
 ## 🏗️ **Architecture**
 
@@ -16,9 +16,11 @@ Local Development → Cloud Production
 Hamilton Raw Ingestion
     ↓ (GeoParquet export)
 Cloudflare R2 Storage
-    ↓ (dbt raw models)
+    ↓ (dbt raw Python models)
 MotherDuck Compute
-    ↓ (Hamilton staging via dbt-ibis)
+    ↓ (dbt staging Python models with Hamilton DAGs)
+Consolidated Staging Table
+    ↓ (dbt prepared models with spatial deduplication)
 DuckLake Catalog (Neon PostgreSQL)
     ↓ (dbt final models)
 Analytics-Ready Tables
@@ -74,31 +76,43 @@ dbt run --target prod --select "raw_*"
 
 **Output**: 6 raw tables in MotherDuck
 
-### **Step 3: Hamilton Staging Consolidation**
+### **Step 3: dbt Staging Models with Hamilton DAGs**
 ```bash
-# Run Hamilton DAGs via dbt-ibis for schema standardization
-dbt-ibis run --target prod --select "stg_*"
+# Run individual staging models with Hamilton spatial processing
+dbt run --target prod --select "stg_*"
 
 # Features:
+# ✅ Individual dataset processing with Hamilton DAGs
+# ✅ Geometry statistics calculation (area_m2, centroid_lat/lon)
+# ✅ H3 spatial indexing for efficient deduplication
 # ✅ Schema standardization across datasets
-# ✅ Field mapping and type casting
-# ✅ Geometry preservation with GeoArrow
-# ✅ Consolidated staging table creation
+# ✅ Consolidated staging table creation via union
 ```
 
-**Output**: `stg_pv_consolidated` table with 443,917+ records
+**Output**: Individual staging tables + `stg_pv_consolidated` table with 443,917+ records
 
-### **Step 4: Final Analytics Models**
+### **Step 4: Prepared Models with Spatial Deduplication**
+```bash
+# Run prepared models including spatial deduplication
+dbt run --target prod --select "prepared_*"
+
+# Features:
+# ✅ H3-based spatial deduplication
+# ✅ Overlap detection and removal
+# ✅ Configurable overlap thresholds
+# ✅ Performance-optimized spatial indexing
+```
+
+<!-- ### **Step 5: Final Analytics Models**
 ```bash
 # Run remaining dbt models for analytics
-dbt run --target prod --exclude "raw_* stg_*"
+dbt run --target prod --exclude "raw_* stg_* prepared_*"
 
 # Features:
-# ✅ Spatial indexing and optimization
 # ✅ Analytics-ready aggregations
-# ✅ Integration with Overture Maps
+# ✅ Integration with Overture Maps (in development)
 # ✅ Performance-optimized views
-```
+``` -->
 
 ## 🔧 **Configuration**
 
@@ -110,14 +124,19 @@ R2_SECRET_KEY=your-secret-key
 CLOUDFLARE_ACCOUNT_ID=your-account-id
 
 # Neon PostgreSQL
-PGHOST=your-host.neon.tech
-PGDATABASE=eo_pv_lakehouse
-PGUSER=neondb_owner
-PGPASSWORD=your-password
+NEON_PG_CONN=postgresql://user:pass@host.neon.tech/eo_pv_lakehouse
 
 # MotherDuck
 MOTHERDUCK_TOKEN=your-jwt-token
 DUCKLAKE_NAME=eo_pv_lakehouse
+
+# Development
+REPO_ROOT=/path/to/ice-mELT_ducklake
+DBT_TARGET=prod
+
+# Spatial processing configuration
+H3_DEDUP_RES=12
+OVERLAP_THRESHOLD=0.5
 ```
 
 ### **dbt Profiles Configuration**
@@ -147,8 +166,8 @@ eo_pv_elt:
       settings:
         ducklake.catalog: '{{ env_var("NEON_PG_CONN") }}'
         s3_access_key_id: '{{ env_var("R2_ACCESS_KEY_ID") }}'
-        s3_secret_access_key: '{{ env_var("R2_SECRET_KEY") }}'
-        s3_endpoint: '{{ env_var("CLOUDFLARE_ACCOUNT_ID") }}.r2.cloudflarestorage.com'
+        s3_secret_access_key: '{{ env_var("R2_SECRET_ACCESS_KEY") }}'
+        s3_endpoint: 'r2://{{ env_var("DUCKLAKE_NAME") }}'
 ```
 
 ## 🎯 **Key Features Implemented**
@@ -167,9 +186,9 @@ eo_pv_elt:
 
 ### **Cloud-Native Integration**
 - **DuckDB S3 Export**: Native `COPY TO 's3://...'` syntax
-- **Arrow PyCapsule**: Zero-copy data transfer between libraries
-- **arro3 Compatibility**: Direct property access (`nbytes`, `num_rows`)
-- **Multi-Engine**: Hamilton + dbt + DuckDB + PostgreSQL
+- **Arrow Zero-Copy**: Efficient data transfer between Hamilton, Ibis, and pandas
+- **Hamilton DAG Integration**: Spatial processing within dbt Python models
+- **Multi-Engine**: Hamilton + dbt + DuckDB + PostgreSQL + MotherDuck
 
 ## 📊 **Performance Metrics**
 
@@ -203,7 +222,9 @@ dbt run --target prod
 ### **Expected Results**
 - ✅ 6 GeoParquet files in R2 bucket
 - ✅ 6 raw tables in MotherDuck
+- ✅ 6 individual staging tables with H3 indexing
 - ✅ 1 consolidated staging table with 443K+ records
+- ✅ 1 spatially deduplicated prepared table
 - ✅ Analytics-ready final models
 
 ## 🚨 **Troubleshooting**
@@ -223,7 +244,7 @@ dbt debug --target prod
 dbt run --target prod --select "raw_ind_pv_solar_farms_2022"
 
 # Test staging pipeline
-dbt-ibis run --target prod --select "stg_pv_consolidated"
+dbt run --target prod --select "stg_pv_consolidated"
 ```
 
 ## 🔄 **Development vs Production**
@@ -243,9 +264,10 @@ dbt-ibis run --target prod --select "stg_pv_consolidated"
 ## 📈 **Next Steps**
 
 ### **Immediate**
-- ✅ Test dbt-ibis cloud integration
-- ✅ Validate staging consolidation
-- ✅ Performance optimization
+- ☑️ Validate staging consolidation and spatial deduplication
+- ☑️ Further Spatial Optimization
+- ☑️ Implement sourcing our several Overture Maps datasets
+- ☑️ Implement sourcing ERA5 from Big Query public datasets
 
 ### **Short Term**
 - 🔄 Custom domain setup for R2
@@ -260,4 +282,4 @@ dbt-ibis run --target prod --select "stg_pv_consolidated"
 ---
 
 **Status**: ✅ **Cloud deployment successfully implemented and tested**
-**Architecture**: Hamilton → R2 → dbt → DuckLake → MotherDuck → Analytics
+**Architecture**: Hamilton → R2 → dbt Python models → Spatial Processing → DuckLake → MotherDuck → Analytics

@@ -7,39 +7,198 @@ models:
     columns:
       - name: dataset_name
         description: "Unique identifier for the source dataset"
-        tests:
-          - not_null
-      - name: source_file
-        description: "Source file or DOI reference for traceability"
+        data_type: varchar
         tests:
           - not_null
       - name: geometry
         description: "Geometry in Well-Known Text format (from DuckLake geometry_wkt)"
+        data_type: varchar
         tests:
           - not_null
       - name: centroid_lon
         description: "Longitude of the geometry centroid"
+        data_type: double
       - name: centroid_lat
         description: "Latitude of the geometry centroid"
+        data_type: double
+      - name: area_m2
+        description: "Installation area in square meters"
+        data_type: double
+      - name: processed_at
+        description: "Hamilton processing timestamp"
+        data_type: timestamp
+      - name: h3_index_12
+        description: "H3 spatial index at resolution 12 for efficient spatial operations"
+        data_type: uint64
+      - name: unified_id
+        description: "Standardized unique identifier across datasets"
+        data_type: varchar
+      - name: source_area_m2
+        description: "Original area measurement from source dataset"
+        data_type: double
+      - name: capacity_mw
+        description: "Installation capacity in megawatts"
+        data_type: double
+      - name: install_date
+        description: "Installation date"
+        data_type: varchar
+
+  # Individual staging models - need schema definitions to include H3 column
+  - name: stg_usa_cali_usgs_pv_2016
+    description: "Standardized USA California USGS PV 2016 dataset"
+    columns:
+      - name: dataset_name
+        data_type: varchar
+      - name: geometry
+        data_type: varchar
+      - name: area_m2
+        data_type: double
+      - name: centroid_lat
+        data_type: double
+      - name: centroid_lon
+        data_type: double
+      - name: processed_at
+        data_type: timestamp
+      - name: h3_index_12
+        data_type: uint64
+      - name: unified_id
+        data_type: varchar
+      - name: source_area_m2
+        data_type: double
+      - name: capacity_mw
+        data_type: double
+      - name: install_date
+        data_type: varchar
+
+  - name: stg_uk_crowdsourced_pv_2020
+    description: "Standardized UK Crowdsourced PV 2020 dataset"
+    columns:
+      - name: dataset_name
+        data_type: varchar
+      - name: geometry
+        data_type: varchar
+      - name: area_m2
+        data_type: double
+      - name: centroid_lat
+        data_type: double
+      - name: centroid_lon
+        data_type: double
+      - name: processed_at
+        data_type: timestamp
+      - name: h3_index_12
+        data_type: uint64
+      - name: unified_id
+        data_type: varchar
+      - name: source_area_m2
+        data_type: double
+      - name: capacity_mw
+        data_type: double
+      - name: install_date
+        data_type: varchar
+
+  - name: stg_chn_med_res_pv_2024
+    description: "Standardized China Medium Resolution PV 2024 dataset"
+    columns:
+      - name: dataset_name
+        data_type: varchar
+      - name: geometry
+        data_type: varchar
+      - name: area_m2
+        data_type: double
+      - name: centroid_lat
+        data_type: double
+      - name: centroid_lon
+        data_type: double
+      - name: processed_at
+        data_type: timestamp
+      - name: h3_index_12
+        data_type: uint64
+      - name: unified_id
+        data_type: varchar
+      - name: source_area_m2
+        data_type: double
+      - name: capacity_mw
+        data_type: double
+      - name: install_date
+        data_type: varchar
+
+  - name: stg_global_pv_inventory_sent2_spot_2021
+    description: "Standardized Global PV Inventory Sentinel-2 SPOT 2021 dataset"
+    columns:
+      - name: dataset_name
+        data_type: varchar
+      - name: geometry
+        data_type: varchar
+      - name: area_m2
+        data_type: double
+      - name: centroid_lat
+        data_type: double
+      - name: centroid_lon
+        data_type: double
+      - name: processed_at
+        data_type: timestamp
+      - name: h3_index_12
+        data_type: uint64
+      - name: unified_id
+        data_type: varchar
+      - name: source_area_m2
+        data_type: double
+      - name: capacity_mw
+        data_type: double
+      - name: install_date
+        data_type: varchar
+
+  - name: stg_ind_pv_solar_farms_2022
+    description: "Standardized India PV Solar Farms 2022 dataset"
+    columns:
+      - name: dataset_name
+        data_type: varchar
+      - name: geometry
+        data_type: varchar
+      - name: area_m2
+        data_type: double
+      - name: centroid_lat
+        data_type: double
+      - name: centroid_lon
+        data_type: double
+      - name: processed_at
+        data_type: timestamp
+      - name: h3_index_12
+        data_type: uint64
+      - name: unified_id
+        data_type: varchar
+      - name: source_area_m2
+        data_type: double
+      - name: capacity_mw
+        data_type: double
+      - name: install_date
+        data_type: varchar
+
+  - name: stg_global_harmonized_large_solar_farms_2020
+    description: "Standardized Global Harmonized Large Solar Farms 2020 dataset"
+    columns:
+      - name: dataset_name
+        data_type: varchar
+      - name: geometry
+        data_type: varchar
+      - name: area_m2
+        data_type: double
+      - name: centroid_lat
+        data_type: double
+      - name: centroid_lon
+        data_type: double
+      - name: processed_at
+        data_type: timestamp
+      - name: h3_index_12
+        data_type: uint64
+      - name: unified_id
+        data_type: varchar
+      - name: source_area_m2
+        data_type: double
+      - name: capacity_mw
+        data_type: double
+      - name: install_date
+        data_type: varchar
 
   # Note: Prepared layer models are disabled (enabled=false) until dependencies are implemented
   # Schema definitions removed to avoid compilation errors - will be re-added when models are enabled
-
-  # Curated Layer - Draft models for future development
-  - name: curated_pv_dataset_summary_draft
-    description: "DRAFT: Basic summary of PV datasets - to be refined later"
-    columns:
-      - name: dataset_name
-        description: "Unique identifier for the dataset"
-        tests:
-          - not_null
-      - name: installation_count
-        description: "Number of PV installations in the dataset"
-        tests:
-          - dbt_utils.expression_is_true:
-              expression: ">= 0"
-      - name: status
-        description: "Model development status"
-        tests:
-          - accepted_values:
-              values: ['DRAFT - TO BE REFINED']

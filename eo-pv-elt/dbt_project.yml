@@ -2,7 +2,7 @@
 # This file will be used by `dlt dbt generate` to create initial models
 
 name: 'eo_pv_pipeline'
-version: '1.0.0'
+version: '0.0.2'
 config-version: 2
 
 # This setting configures which "profile" dbt uses for this project.
@@ -24,18 +24,25 @@ clean-targets:
   - "target"
   - "dbt_packages"
 
+# Environment variable setup for models
+
 # Model configurations
 models:
   eo_pv_pipeline:
+    # Raw models - load data into DuckLake catalog
+    raw:
+      +materialized: table
+      +database: eo_pv_lakehouse
+
     # Staging models - raw data with geopandas preprocessing (Python models)
     staging:
       +materialized: table
-      +schema: staging
+      +database: eo_pv_lakehouse
 
     # Prepared models - business logic transformations and data preparation
     prepared:
       +materialized: table
-      +schema: prepared
+      +database: eo_pv_lakehouse
 
       # Overture Maps models should be views only to minimize storage
       prep_overture_countries:
@@ -49,43 +56,38 @@ models:
 
     # Curated models - final analytical datasets
     curated:
-      +materialized: table
+      +materialized: materialized view
       +schema: curated
-
-      # Summary models can be smaller tables
-      curated_pv_dataset_summary:
-        +materialized: table
 
 # Seed configurations
 seeds:
   eo_pv_pipeline:
     +schema: seeds
 
-# Test configurations
-tests:
-  +store_failures: true
-  +schema: test_failures
+# tests:
+#   +store_failures: true
+#   +schema: test_failures
 
 # Variables for the project
 vars:
   # Date range for data processing
   start_date: '2015-01-01'
-  end_date: '2024-12-31'
+  end_date: '2025-12-31'
 
   # Coordinate reference systems
   default_crs: 'EPSG:4326'  # WGS84
 
   # Data quality thresholds
-  min_geometry_area: 10  # minimum area in square meters
+  min_geometry_area: 3  # minimum area in square meters
   max_geometry_area: 1000000  # maximum area in square meters
 
   # H3 spatial indexing settings
-  h3_resolution: 8  # ~0.7 km² hexagons for PV installations
+  h3_resolution: 12  # ~15,047.5 m² hexagons for PV installations
   h3_country_resolution: 4  # ~1,770 km² hexagons for country decomposition
 
   # Spatial processing settings
-  overlap_threshold: 0.75  # For duplicate detection
-  buffer_distance_m: 100   # Buffer for spatial joins
+  overlap_threshold: 0.5  # For duplicate detection
+  buffer_distance_m: 150   # Buffer for spatial joins
 
   # DuckDB-specific settings
   use_native_geometry: true  # Use DuckDB spatial extension instead of WKT
@@ -95,18 +97,19 @@ vars:
 # Note: Sources are properly configured in models/sources.yml
 # DuckDB-specific source configurations can be added here if needed
 
-# DuckDB-specific configurations
+# DuckDB-specific configurations and environment setup
 on-run-start:
+  # Log target information for debugging
+  - "{{ log('🎯 dbt target: ' ~ target.name, info=true) }}"
+  # Install and load required extensions for GeoParquet and DuckLake
   - "INSTALL spatial"
   - "LOAD spatial"
   - "INSTALL ducklake"
   - "LOAD ducklake"
+  - "INSTALL httpfs"
+  - "LOAD httpfs"
   - "INSTALL h3 FROM community"
   - "LOAD h3"
   # Note: geography extension temporarily commented out due to availability issues
   # - "INSTALL geography FROM community"
   # - "LOAD geography"
-
-  # Attach DuckLake catalog for staging tables (only if not already attached)
-  - "ATTACH IF NOT EXISTS 'ducklake:sqlite:{{ env_var('REPO_ROOT') }}/db/ducklake_catalog.sqlite' AS eo_pv_lakehouse (DATA_PATH '{{ env_var('REPO_ROOT') }}/db/ducklake_data/')"
-  - "USE eo_pv_lakehouse"

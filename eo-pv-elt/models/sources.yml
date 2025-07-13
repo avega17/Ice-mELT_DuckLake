@@ -1,47 +1,45 @@
 version: 2
 
 sources:
-  # DOI PV Raw Data - External GeoParquet files (for cloud deployment)
+  # DOI PV Raw Data - External GeoParquet files (dynamic path based on target)
   - name: doi_pv_geoparquet
-    description: "Raw DOI PV datasets from GeoParquet exports - for cloud deployment when files are in S3/R2"
+    description: "Raw DOI PV datasets from GeoParquet exports - local files for dev, R2 bucket for prod"
     config:
-      external_location: "{{ env_var('GPQ_EXPORT_PATH', env_var('REPO_ROOT') ~ '/db/geoparquet') }}"
+      # DEV: /local/path/to/geoparquet/files
+      # PROD: s3://bucket/geoparquet/files
+      external_location: "{% if target.name == 'prod' %}{{ env_var('GEOPARQUET_SOURCE_PATH_PROD') }}{% else %}{{ env_var('GEOPARQUET_SOURCE_PATH_DEV') }}{% endif %}"
     tables:
       - name: doi_uk_crowdsourced_pv_2020
         description: "UK Crowdsourced PV 2020 GeoParquet export"
         config:
-          external_location: "{{ env_var('GPQ_EXPORT_PATH', env_var('REPO_ROOT') ~ '/db/geoparquet') }}/doi_uk_crowdsourced_pv_2020.parquet"
+          external_location: "{% if target.name == 'prod' %}{{ env_var('GEOPARQUET_SOURCE_PATH_PROD') }}{% else %}{{ env_var('GEOPARQUET_SOURCE_PATH_DEV') }}{% endif %}/doi_uk_crowdsourced_pv_2020.parquet"
       - name: doi_chn_med_res_pv_2024
         description: "China Medium Resolution PV 2024 GeoParquet export"
         config:
-          external_location: "{{ env_var('GPQ_EXPORT_PATH', env_var('REPO_ROOT') ~ '/db/geoparquet') }}/doi_chn_med_res_pv_2024.parquet"
+          external_location: "{% if target.name == 'prod' %}{{ env_var('GEOPARQUET_SOURCE_PATH_PROD') }}{% else %}{{ env_var('GEOPARQUET_SOURCE_PATH_DEV') }}{% endif %}/doi_chn_med_res_pv_2024.parquet"
       - name: doi_usa_cali_usgs_pv_2016
         description: "USA California USGS PV 2016 GeoParquet export"
         config:
-          external_location: "{{ env_var('GPQ_EXPORT_PATH', env_var('REPO_ROOT') ~ '/db/geoparquet') }}/doi_usa_cali_usgs_pv_2016.parquet"
+          external_location: "{% if target.name == 'prod' %}{{ env_var('GEOPARQUET_SOURCE_PATH_PROD') }}{% else %}{{ env_var('GEOPARQUET_SOURCE_PATH_DEV') }}{% endif %}/doi_usa_cali_usgs_pv_2016.parquet"
       - name: doi_ind_pv_solar_farms_2022
         description: "India PV Solar Farms 2022 GeoParquet export"
         config:
-          external_location: "{{ env_var('GPQ_EXPORT_PATH', env_var('REPO_ROOT') ~ '/db/geoparquet') }}/doi_ind_pv_solar_farms_2022.parquet"
+          external_location: "{% if target.name == 'prod' %}{{ env_var('GEOPARQUET_SOURCE_PATH_PROD') }}{% else %}{{ env_var('GEOPARQUET_SOURCE_PATH_DEV') }}{% endif %}/doi_ind_pv_solar_farms_2022.parquet"
       - name: doi_global_pv_inventory_sent2_spot_2021
         description: "Global PV Inventory Sentinel-2 SPOT 2021 GeoParquet export"
         config:
-          external_location: "{{ env_var('GPQ_EXPORT_PATH', env_var('REPO_ROOT') ~ '/db/geoparquet') }}/doi_global_pv_inventory_sent2_spot_2021.parquet"
+          external_location: "{% if target.name == 'prod' %}{{ env_var('GEOPARQUET_SOURCE_PATH_PROD') }}{% else %}{{ env_var('GEOPARQUET_SOURCE_PATH_DEV') }}{% endif %}/doi_global_pv_inventory_sent2_spot_2021.parquet"
       - name: doi_global_harmonized_large_solar_farms_2020
         description: "Global Harmonized Large Solar Farms 2020 GeoParquet export"
         config:
-          external_location: "{{ env_var('GPQ_EXPORT_PATH', env_var('REPO_ROOT') ~ '/db/geoparquet') }}/doi_global_harmonized_large_solar_farms_2020.parquet"
+          external_location: "{% if target.name == 'prod' %}{{ env_var('GEOPARQUET_SOURCE_PATH_PROD') }}{% else %}{{ env_var('GEOPARQUET_SOURCE_PATH_DEV') }}{% endif %}/doi_global_harmonized_large_solar_farms_2020.parquet"
 
   # DOI PV Raw Data - Database tables (for staging consolidation reference)
   - name: doi_pv_raw
     description: "Raw DOI PV datasets - individual tables per dataset from Hamilton DOI pipeline"
     database: eo_pv_lakehouse  # DuckLake catalog attached in on-run-start
     schema: main  # Hamilton creates tables in main schema
-    config:
-      freshness:
-        warn_after: {count: 24, period: hour}
-        error_after: {count: 48, period: hour}
-      loaded_at_field: processed_at
+    loaded_at_field: processed_at
     tables:
       # Individual dataset tables created by Hamilton with pattern: raw_{dataset_name}
       - name: raw_uk_crowdsourced_pv_2020
@@ -132,11 +130,7 @@ sources:
   - name: hamilton_staging
     description: "Staging tables and views created by Hamilton consolidation pipeline"
     database: eo_pv_lakehouse  # DuckLake catalog attached in on-run-start
-    schema: main
-    config:
-      freshness:
-        warn_after: {count: 6, period: hour}
-        error_after: {count: 12, period: hour}
+    schema: main  # For dev: tables in main schema, for prod: staging schema
     tables:
       # Consolidated view that unions all individual staging tables
       - name: stg_pv_consolidated

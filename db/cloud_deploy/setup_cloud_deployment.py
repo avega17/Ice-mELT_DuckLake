@@ -176,7 +176,7 @@ def test_integrated_cloud_stack():
         # Test DuckLake with PostgreSQL catalog + R2 storage
         con = _create_ducklake_connection(
             catalog_path="",
-            data_path="s3://eo-pv-lakehouse/ducklake_data/",
+            data_path="s3://eo-pv-lakehouse/ducklake_data",
             use_ducklake=True,
             catalog_type="postgresql"
         )
@@ -209,7 +209,7 @@ def generate_cloud_config():
             "storage": {
                 "type": "cloudflare_r2",
                 "bucket": "eo-pv-lakehouse",
-                "data_path": "s3://eo-pv-lakehouse/ducklake_data/"
+                "data_path": "s3://eo-pv-lakehouse/ducklake_data"
             },
             "compute": {
                 "type": "motherduck",

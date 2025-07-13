@@ -40,7 +40,8 @@ load_dotenv()
 # Use relative paths as they work better than absolute paths in this environment
 REPO_ROOT = str(Path(__file__).parent.parent.parent.parent)
 # Default to DuckLake catalog for consistency with staging DAG
-DATABASE_PATH = f"ducklake:sqlite:{str(Path(__file__).parent.parent.parent.parent / 'db' / 'ducklake_catalog.sqlite')}"
+DUCKLAKE_CATALOG = os.getenv('DUCKLAKE_DEV_CONN', 'ducklake:sqlite:db/ducklake_catalog.sqlite')
+DATABASE_PATH = DUCKLAKE_CATALOG
 
 
 def create_hamilton_driver(
@@ -105,7 +106,7 @@ def load_staging_config(args) -> dict:
         # PostgreSQL catalog for cloud deployment
         catalog_type = 'postgresql'
         catalog_path = args.database  # Full PostgreSQL connection string
-        data_path = 's3://eo-pv-lakehouse/ducklake_data/'  # R2 cloud storage
+        data_path = 's3://eo-pv-lakehouse/ducklake_data'  # R2 cloud storage
         print(f"🌩️  Detected PostgreSQL catalog for cloud deployment")
         print(f"   📊 Catalog: PostgreSQL (connection details hidden)")
         print(f"   ☁️  Data path: {data_path}")

@@ -26,6 +26,7 @@ geopy
 geos
 graphviz
 sf-hamilton
+sf-hamilton[dask]
 # optional but recommended: 
 sf-hamilton[cli]
 h3-py>4.1.0

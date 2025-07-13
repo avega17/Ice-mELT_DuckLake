@@ -331,7 +331,7 @@ def _apply_h3_indexing_h3py(gdf: gpd.GeoDataFrame, h3_resolution: int) -> gpd.Ge
         GeoDataFrame with H3 index column added
     """
     try:
-        import h3  # h3-py v4+
+        import h3.api.memview_int as h3  # h3-py v4+
 
         print(f"      - Using h3-py v4+ API")
 
@@ -377,7 +377,7 @@ def _convert_to_ibis_table(gdf: gpd.GeoDataFrame, dataset_name: str) -> ir.Table
     except Exception as e:
         print(f"      - Spatial extension issue: {e}")
         try:
-            con.raw_sql("INSTALL spatial FROM community; LOAD spatial;")
+            con.raw_sql("INSTALL spatial; LOAD spatial;")
             print(f"      - Spatial extension loaded from community")
         except Exception as e2:
             print(f"      - Failed to load spatial extension: {e2}")
@@ -416,7 +416,7 @@ def _create_empty_h3_table() -> ir.Table:
         con.raw_sql("INSTALL spatial; LOAD spatial;")
     except Exception:
         try:
-            con.raw_sql("INSTALL spatial FROM community; LOAD spatial;")
+            con.raw_sql("INSTALL spatial; LOAD spatial;")
         except Exception as e:
             print(f"      - Warning: Could not load spatial extension: {e}")
 

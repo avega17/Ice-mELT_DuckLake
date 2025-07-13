@@ -1,6 +1,6 @@
 # DuckLake Maintenance Utilities
 
-A comprehensive CLI tool for maintaining DuckLake catalogs with snapshot management, file cleanup, and storage optimization.
+A comprehensive CLI tool for maintaining DuckLake catalogs with snapshot management, file cleanup, and storage optimization. Supports both local SQLite catalogs (development) and cloud PostgreSQL catalogs (production).
 
 ## Features
 
@@ -129,8 +129,10 @@ python ducklake_maintenance.py full-maintenance --days 7 --dry-run
 
 ### Environment Variables
 
-- `DUCKLAKE_CATALOG_PATH`: Default catalog path
-- `DUCKLAKE_DATA_PATH`: Default data directory path
+- `DUCKLAKE_CATALOG_PATH`: Default catalog path (SQLite for dev, PostgreSQL for prod)
+- `DUCKLAKE_DATA_PATH`: Default data directory path (local for dev, R2 bucket for prod)
+- `NEON_PG_CONN`: PostgreSQL connection string for production catalog
+- `DUCKLAKE_NAME`: Bucket name for cloud storage (production)
 
 ### Configuration File
 
@@ -144,6 +146,11 @@ You can use `ducklake_config.json` to store default settings:
     "default_expire_days": 7,
     "auto_cleanup": true,
     "auto_optimize": true
+  },
+  "cloud": {
+    "catalog_connection": "postgresql://user:pass@host/db",
+    "data_path": "r2://bucket-name/",
+    "enable_cloud_maintenance": true
   }
 }
 ```
@@ -239,6 +246,15 @@ python ducklake_maintenance.py --verbose full-maintenance --days 7
 ## Contributing
 
 Feel free to submit issues and enhancement requests!
+
+## Integration with Ice-mELT Pipeline
+
+This maintenance utility is designed to work with the Ice-mELT DuckLake ELT pipeline:
+
+- **Development**: Maintains local SQLite catalog with local data storage
+- **Production**: Maintains Neon PostgreSQL catalog with Cloudflare R2 storage
+- **dbt Integration**: Coordinates with dbt models for table lifecycle management
+- **Hamilton DAGs**: Supports maintenance of tables created by Hamilton dataflows
 
 ## License
 
