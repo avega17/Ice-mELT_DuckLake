@@ -16,6 +16,7 @@ secrets.toml
 .secrets.toml
 *.secrets.toml
 eo-pv-elt/package-lock.yml
+.wrangler
 
 # dbt Cloud credentials and profiles
 dbt_cloud.yml
@@ -44,6 +45,8 @@ profiles.yml
 # Database connection strings
 database.url
 connection_string.txt
+db/env_setup_scripts/*.fish
+db/env_setup_scripts/*.sh
 
 # =============================================================================
 # LARGE DATA FILES - PREVENT REPO BLOAT
@@ -329,3 +332,4 @@ cache/
 # Keep documentation assets
 !docs/assets/
 !docs/images/
+data_loaders/stg/consolidation/tmp.sql

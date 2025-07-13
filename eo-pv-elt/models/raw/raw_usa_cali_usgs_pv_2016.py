@@ -56,7 +56,7 @@ def model(dbt, session):
         r2_access_key = os.getenv('R2_ACCESS_KEY_ID')
         r2_secret_key = os.getenv('R2_SECRET_KEY')
         r2_account_id = os.getenv('CLOUDFLARE_ACCOUNT_ID')
-
+    
         # Create local (temporary) R2 secret for this session
         secret_name = f"r2_{target_name}_secret"
         session.execute(f"""
@@ -64,7 +64,8 @@ def model(dbt, session):
                 TYPE r2,
                 KEY_ID '{r2_access_key}',
                 SECRET '{r2_secret_key}',
-                ACCOUNT_ID '{r2_account_id}'
+                ACCOUNT_ID '{r2_account_id}',
+                REGION 'auto'
             )
         """)
 
