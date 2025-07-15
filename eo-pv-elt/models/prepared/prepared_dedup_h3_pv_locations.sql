@@ -79,7 +79,7 @@ overlap_candidates AS (
     FROM grouped_by_h3 a
     JOIN grouped_by_h3 b
       ON a.{{ h3_column_name }} = b.{{ h3_column_name }}  -- Same H3 cell only
-     AND a.priority_rank < b.priority_rank  -- Higher priority (larger area) wins
+     AND a.priority_rank > b.priority_rank  -- Lower priority (smaller area) wins 
      AND a.dataset_name != b.dataset_name   -- Different datasets only
     WHERE ST_GeomFromText(a.geometry) IS NOT NULL
       AND ST_GeomFromText(b.geometry) IS NOT NULL

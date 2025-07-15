@@ -60,7 +60,7 @@ def model(dbt, session):
 
     # Use DBT_TARGET environment variable set by target scripts
     target_name = os.getenv('DBT_TARGET', 'dev')
-    is_prod_target = target_name == 'prod'
+    is_prod_target = target_name == 'prod' or dbt.config.get('target_name') == 'prod'
 
     print(f"   🎯 Target from DBT_TARGET env var: {target_name}")
     print(f"   🎯 Target detected: {'PROD' if is_prod_target else 'DEV'}")

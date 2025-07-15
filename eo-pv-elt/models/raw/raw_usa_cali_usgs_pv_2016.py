@@ -44,34 +44,34 @@ def model(dbt, session):
     print(f"   📁 File: {file_path}")
 
     # Install and load required extensions
-    session.execute("INSTALL spatial; LOAD spatial")
+    session.execute("INSTALL spatial; LOAD spatial;")
 
-    # For S3 access, configure Cloudflare R2 settings
+    # For S3 access, configure Cloudflare R2 settings using S3 API
+    # Note: This model uses S3 API as workaround for R2 protocol issues
     if is_prod_target:
-        session.execute("INSTALL httpfs; LOAD httpfs")
+        session.execute("INSTALL httpfs; LOAD httpfs;")
         print(f"   🌐 Loaded httpfs extension for S3 access")
 
-        # Create R2 SECRET for DuckDB r2:// syntax
-        # Reference: https://duckdb.org/docs/stable/guides/network_cloud_storage/cloudflare_r2_import.html
+        # Use S3 API for Cloudflare R2 instead of native R2 protocol
+        # Reference: https://duckdb.org/docs/stable/core_extensions/httpfs/s3api.html
         r2_access_key = os.getenv('R2_ACCESS_KEY_ID')
         r2_secret_key = os.getenv('R2_SECRET_KEY')
         r2_account_id = os.getenv('CLOUDFLARE_ACCOUNT_ID')
-    
-        # Create local (temporary) R2 secret for this session
-        secret_name = f"r2_{target_name}_secret"
-        session.execute(f"""
-            CREATE OR REPLACE SECRET {secret_name} (
-                TYPE r2,
-                KEY_ID '{r2_access_key}',
-                SECRET '{r2_secret_key}',
-                ACCOUNT_ID '{r2_account_id}',
-                REGION 'auto'
-            )
-        """)
 
-        print(f"   ✅ R2 SECRET '{secret_name}' created for r2:// syntax")
-        secrets_result = session.execute("SELECT name, type FROM duckdb_secrets() WHERE type = 'r2'").fetchall()
-        print(f"   🔍 Available R2 secrets: {[row[0] for row in secrets_result]}")
+        # Configure S3 settings for Cloudflare R2
+        session.execute(f"SET s3_access_key_id='{r2_access_key}';")
+        session.execute(f"SET s3_secret_access_key='{r2_secret_key}';")
+        session.execute(f"SET s3_endpoint='{r2_account_id}.r2.cloudflarestorage.com';")
+        session.execute("SET s3_use_ssl=true;")
+        session.execute("SET s3_url_style='path';")
+
+        print(f"   ✅ S3 API configured for Cloudflare R2")
+        print(f"   🔗 S3 endpoint: {r2_account_id}.r2.cloudflarestorage.com")
+
+        # Convert r2:// path to s3:// path for S3 API
+        if file_path.startswith('r2://'):
+            file_path = file_path.replace('r2://', 's3://')
+            print(f"   🔄 Converted to S3 path: {file_path}")
 
     # Read the GeoParquet file using DuckDB's native support
     # Include both WKT and WKB geometry formats for flexibility
@@ -87,7 +87,7 @@ def model(dbt, session):
             '{dataset_metadata.get('paper_title', '')}' as paper_title,
             CURRENT_TIMESTAMP as dbt_loaded_at
         FROM read_parquet('{file_path}')
-        WHERE ST_IsValid({geometry_parse}) = true  -- Filter out invalid geometries
+        WHERE ST_IsValid({geometry_parse}) = true 
     """
 
     # Execute query and return DataFrame for dbt to materialize

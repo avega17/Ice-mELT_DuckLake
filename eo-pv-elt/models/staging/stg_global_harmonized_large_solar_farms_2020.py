@@ -59,8 +59,9 @@ def model(dbt, session):
     from hamilton.execution import executors
 
     # Use dbt's built-in target information
-    target_name = dbt.config.get('target_name', 'dev')
-    is_prod_target = target_name == 'prod'
+    target_name = os.getenv('DBT_TARGET', 'dev')
+    is_prod_target = target_name == 'prod' or dbt.config.get('target_name') == 'prod'
+
 
     os.environ['DBT_TARGET'] = target_name  # Ensure it's set for Hamilton
 
@@ -95,7 +96,7 @@ def model(dbt, session):
 
     print(f"   📊 Hamilton config for dataset: {config['dataset_name']}")
     print(f"   🗺️  Spatial processing enabled: geometry_stats={config['calculate_geometry_stats']}, h3_index={config['assign_h3_index']}")
-
+    session.execute("INSTALL spatial; LOAD spatial")    
     # Create Hamilton driver following working pattern from ingest_doi_pv_locations.py
     # Enable dynamic execution for Parallelizable/Collect patterns
     dr = (driver.Builder()

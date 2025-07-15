@@ -45,8 +45,8 @@ profiles.yml
 # Database connection strings
 database.url
 connection_string.txt
-db/env_setup_scripts/*.fish
-db/env_setup_scripts/*.sh
+db/env_scripts/*.fish
+db/env_scripts/*.sh
 
 # =============================================================================
 # LARGE DATA FILES - PREVENT REPO BLOAT
@@ -156,6 +156,9 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# TODO feature development and bug resolution
+*TODO.md
 
 # Jupyter Notebook
 .ipynb_checkpoints

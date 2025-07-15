@@ -23,7 +23,6 @@ def model(dbt, session):
 
     # Multiple methods to detect target
     target_name = os.getenv('DBT_TARGET', 'dev')
-    bucket_name = os.getenv('DUCKLAKE_NAME', 'eo_pv_lakehouse').replace('_', '-')
 
     # Alternative: Check if we're connected to MotherDuck
     db_name = str(session.execute("SELECT current_database()").fetchone()[0])
@@ -46,32 +45,11 @@ def model(dbt, session):
     # Install and load required extensions
     session.execute("INSTALL spatial; LOAD spatial")
 
-    # For S3 access, configure Cloudflare R2 settings
+    # For R2 access, load httpfs extension (R2 secret configured in profiles.yml)
     if is_prod_target:
         session.execute("INSTALL httpfs; LOAD httpfs")
-        print(f"   🌐 Loaded httpfs extension for S3 access")
-
-        # Create R2 SECRET for DuckDB r2:// syntax
-        # Reference: https://duckdb.org/docs/stable/guides/network_cloud_storage/cloudflare_r2_import.html
-        r2_access_key = os.getenv('R2_ACCESS_KEY_ID')
-        r2_secret_key = os.getenv('R2_SECRET_KEY')
-        r2_account_id = os.getenv('CLOUDFLARE_ACCOUNT_ID')
-
-        # Create local (temporary) R2 secret for this session
-        secret_name = f"r2_{target_name}_secret"
-        session.execute(f"""
-            CREATE OR REPLACE SECRET {secret_name} (
-                TYPE r2,
-                KEY_ID '{r2_access_key}',
-                SECRET '{r2_secret_key}',
-                ACCOUNT_ID '{r2_account_id}',
-                REGION 'auto'
-            )
-        """)
-
-        print(f"   ✅ R2 SECRET '{secret_name}' created for r2:// syntax")
-        secrets_result = session.execute("SELECT name, type FROM duckdb_secrets() WHERE type = 'r2'").fetchall()
-        print(f"   🔍 Available R2 secrets: {[row[0] for row in secrets_result]}")
+        print(f"   🌐 Loaded httpfs extension for R2 access")
+        print(f"   ✅ Using R2 secret from dbt profiles.yml configuration")
 
     # Read the GeoParquet file using DuckDB's native support
     # Include both WKT and WKB geometry formats for flexibility

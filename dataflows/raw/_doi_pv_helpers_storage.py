@@ -351,8 +351,7 @@ def _geoparquet_export_cloud(
                         TYPE r2,
                         KEY_ID '{r2_access_key}',
                         SECRET '{r2_secret_key}',
-                        ACCOUNT_ID '{r2_account_id}',
-                        REGION 'auto'
+                        ACCOUNT_ID '{r2_account_id}'
                     )
                 """)
                 print("   ✅ R2 SECRET created for export")

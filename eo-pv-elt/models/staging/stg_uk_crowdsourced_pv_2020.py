@@ -59,8 +59,8 @@ def model(dbt, session):
     from hamilton.execution import executors
 
     # Use dbt's built-in target information
-    target_name = dbt.config.get('target_name', 'dev')
-    is_prod_target = target_name == 'prod'
+    target_name = os.getenv('DBT_TARGET', 'dev')
+    is_prod_target = target_name == 'prod' or dbt.config.get('target_name') == 'prod'
 
     os.environ['DBT_TARGET'] = target_name  # Ensure it's set for Hamilton
 
