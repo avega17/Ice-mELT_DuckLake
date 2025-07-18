@@ -59,6 +59,24 @@ This project implements a comprehensive data pipeline for processing and analyzi
 - [Overture Maps](https://overturemaps.org/blog/2025/overture-maps-foundation-making-open-data-the-winning-choice/) for admin boundaries, building footprints, land cover
 - [Google Solar API](https://developers.google.com/maps/documentation/solar/data-layers) and [NREL NSRDB](https://nsrdb.nrel.gov/about/what-is-the-nsrdb) for irradiance data
 
+### 🦆 **Why DuckLake? A Key Architectural Decision**
+
+**DuckLake** addresses fundamental limitations in existing lakehouse formats by storing metadata in a transactional SQL database rather than as "many small files" in object storage. This enables single-query metadata access, reliable ACID transactions, and seamless integration with existing tools and decades of DBMS advances since at it's core it simply **builds on SQL and Parquet**. A key DuckLake contribution to the data lakehouse architecture is is adding another dimmension to scale: Storage, compute, AND metadata can all scale independently.
+
+> *DuckLake re-imagines what a “Lakehouse” format should look like by acknowledging two simple truths:*  
+> *1. Storing data files in open formats on blob storage is a great idea for scalability and to prevent [cloud and data vendor] lock-in.*  
+> *2. Managing metadata is a complex and interconnected data management task best left to a database management system.*  
+
+-- [The DuckLake Manifesto: SQL as a Lakehouse Format](https://ducklake.select/manifesto/#ducklake)
+
+#### Key Benefits for EO Research:
+- **Fast metadata access** for spatial workloads
+- **Reliable cross-table transactions** for multi-dataset integration
+- **Collaborative research** with consistent concurrent access
+- **Cost-effective scaling** using free tier PostgreSQL for metadata
+
+*For more details on design philosophy and "Big Data is Dead" perspective, see [modern_data_stack.md](docs/modern_data_stack.md)*
+
 ### 🔄 **Hamilton Dataflows: The Modern Pipeline Approach**
 
 Our pipeline architecture leverages **Hamilton** for function-based DAG dataflows that provide:
@@ -100,24 +118,6 @@ GeoArrow-RS Conversion → DuckDB Storage + GeoParquet Export (native I/O)
 - doi_global_pv_inventory_sent2_spot_2021: 36,882 records
 - doi_global_harmonized_large_solar_farms_2020: 35,272 records
 - *Total: ~380K deduplicated PV installations across 6 active datasets*
-
-### 🦆 **Why DuckLake? A Key Architectural Decision**
-
-**DuckLake** addresses fundamental limitations in existing lakehouse formats by storing metadata in a transactional SQL database rather than as "many small files" in object storage. This enables single-query metadata access, reliable ACID transactions, and seamless integration with existing tools and decades of DBMS advances since at it's core it simply **builds on SQL and Parquet**. A key DuckLake contribution to the data lakehouse architecture is is adding another dimmension to scale: Storage, compute, AND metadata can all scale independently.
-
-> *DuckLake re-imagines what a “Lakehouse” format should look like by acknowledging two simple truths:*  
-> *1. Storing data files in open formats on blob storage is a great idea for scalability and to prevent [cloud and data vendor] lock-in.*  
-> *2. Managing metadata is a complex and interconnected data management task best left to a database management system.*  
-
--- [The DuckLake Manifesto: SQL as a Lakehouse Format](https://ducklake.select/manifesto/#ducklake)
-
-#### Key Benefits for EO Research:
-- **Fast metadata access** for spatial workloads
-- **Reliable cross-table transactions** for multi-dataset integration
-- **Collaborative research** with consistent concurrent access
-- **Cost-effective scaling** using free tier PostgreSQL for metadata
-
-*For more details on design philosophy and "Big Data is Dead" perspective, see [modern_data_stack.md](docs/modern_data_stack.md)*
 
 ## 📊 Current State
 
@@ -193,7 +193,7 @@ GeoArrow-RS Conversion → DuckDB Storage + GeoParquet Export (native I/O)
 ### Prerequisites
 ```bash
 # create conda environment
-conda env create -n eo-pv-cv python=3.10
+conda env create -n eo-pv-cv python>=3.11
 conda activate eo-pv-cv
 pip install -r requirements.txt
 
