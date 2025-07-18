@@ -113,7 +113,7 @@ While Apache Iceberg pioneered open table formats, it has [practical limitations
 - **Compaction overhead**: Requires separate Spark jobs for maintenance
 - **Limited real-time capabilities**: Optimized for batch, not streaming
 
-### DuckLake's SQL-First Approach
+### DuckLake's SQL-First Approach Widely Regarded as a Good Move
 
 DuckLake addresses these limitations by storing metadata in a transactional SQL database rather than as "many small files" in object storage. This enables single-query metadata access, reliable ACID transactions, and seamless integration with existing SQL tools. You can learn more in their [concise manifesto](https://ducklake.select/manifesto/). 
 
@@ -148,6 +148,14 @@ DuckLake addresses these limitations by storing metadata in a transactional SQL 
 - **Referential consistency** prevents metadata corruption (no duplicate snapshot IDs)
 - **Advanced database features** like views, nested types, transactional schema changes
 - **Single query access** vs. multiple HTTP requests to blob storage
+
+*References*:
+- [DuckLake: Generally Regarded as a Good Idea](https://brojonat.com/posts/ducklake/)
+- [Digging into DuckLake: Getting our Ducks in a Row](https://rmoff.net/2025/06/02/digging-into-ducklake/)
+- [Introducing DuckLake- Announcement/Interview](https://www.youtube.com/watch?app=desktop&v=zeonmOO9jm4)
+- [How DuckLake Simplifies Data Lakehouse Architechture - Interview](https://www.youtube.com/watch?v=-PYLFx3FRfQ)
+- [DuckDB enters the Lakehouse Race](https://dataengineeringcentral.substack.com/p/duckdb-enters-the-lake-house-race)
+- [The DuckLake Manifesto: SQL as a Lakehouse Format](https://ducklake.select/manifesto/)
 
 ## MotherDuck: Hybrid Query Processing Now Coming to a Lakehouse Near You
 
@@ -205,7 +213,7 @@ The combination of **DuckLake + MotherDuck + Virtual Datasets** enables capacity
 - Maintain cost efficiency through intelligent caching and query routing
 - Collaborate with team members through [Motherduck's multi-user sharing and access controls](https://motherduck.com/docs/key-tasks/sharing-data/sharing-overview/) where each user gets [their own user-configurable compute instance](https://motherduck.com/blog/scaling-duckdb-with-ducklings/) instead of contention over shared compute resources
 
-**References**:
+*References*:
 1. [MotherDuck CIDR Paper: Hybrid Query Processing](https://motherduck.com/blog/cidr-paper-hybrid-query-processing-motherduck/)
 2. [Paper Summary: MotherDuck DuckDB in the Cloud and Client](https://hemantkgupta.medium.com/insight-from-paper-motherduck-duckdb-in-the-cloud-and-in-the-client-e4a73da9dbec)
 3. [DuckLake Announcement: A Duck Walks into a Lake](https://motherduck.com/blog/ducklake-motherduck/)
