@@ -119,6 +119,10 @@ DuckLake addresses these limitations by storing metadata in a transactional SQL 
 
 **DuckLake's Insight**:
 
+> *"Once a database has entered the Lakehouse stack anyway, it makes an insane amount of sense to also use it for managing the rest of the table metadata! We can still take advantage of the 'endless' capacity and 'infinite' scalability of blob stores for storing the actual table data in open formats like Parquet, but we can much more efficiently and effectively manage the metadata needed to support changes in a database!"*
+
+-- [The DuckLake Manifesto: SQL as a Lakehouse Format](https://ducklake.select/manifesto/#ducklake)  
+
 <div align="center">
     <figure>
         <img src="../figures/dbms_are_good_actually.png" alt="DuckLake as Mike Ermantraut" width="60%">
@@ -126,10 +130,6 @@ DuckLake addresses these limitations by storing metadata in a transactional SQL 
         “The basic design of DuckLake is to <strong>move all metadata structures into a SQL database</strong>.” </a> </figcaption>
     </figure>
 </div>
-
-> *"Once a database has entered the Lakehouse stack anyway, it makes an insane amount of sense to also use it for managing the rest of the table metadata! We can still take advantage of the 'endless' capacity and 'infinite' scalability of blob stores for storing the actual table data in open formats like Parquet, but we can much more efficiently and effectively manage the metadata needed to support changes in a database!"*
-
--- [The DuckLake Manifesto: SQL as a Lakehouse Format](https://ducklake.select/manifesto/#ducklake)  
 
 **Core Design Principles**:
 1. **Store data files** in open formats on blob storage (scalability, no lock-in)
@@ -143,7 +143,7 @@ DuckLake addresses these limitations by storing metadata in a transactional SQL 
 </div>
 
 **Technical Advantages**:
-- **Pure SQL transactions** describe all data operations (schema, CRUD)
+- **Pure SQL transactions** describe all data operations (schema, ACID)
 - **Cross-table transactions** manage multiple tables atomically
 - **Referential consistency** prevents metadata corruption (no duplicate snapshot IDs)
 - **Advanced database features** like views, nested types, transactional schema changes
@@ -184,7 +184,7 @@ MotherDuck's [managed DuckLake](https://motherduck.com/blog/announcing-ducklake-
 - **Petabyte scalability**: Virtual raster datasets + DuckLake architecture for planetary EO analysis
 - **Temporal scaling**: Time travel across millions of snapshots without performance degradation
 
-**Note on Current Limitations**: While MotherDuck doesn't yet *directly* support attaching external DuckLake catalogs like PostgreSQL, this can be worked around by attaching via a local DuckDB client and using MotherDuck for the compute/query engine.
+**Note on early DuckLake (v0.2) in MotherDuck Limitations**: While MotherDuck doesn't yet *directly* support attaching external DuckLake catalogs like PostgreSQL, this can be worked around by attaching via a local DuckDB client and using MotherDuck for the compute/query engine.
 
 ### Capacity for Planetary-Scale EO Analysis
 
@@ -501,8 +501,8 @@ As highlighted in [ML4Devs analysis](https://www.ml4devs.com/en/articles/who-car
 
 ### Industry Adoption and Future-Proofing
 
-**ESA's Zarr Commitment**: The European Space Agency is [incrementally moving the Sentinel satellite archive to Zarr](https://zarr.eopf.copernicus.eu/), signaling that "the future of planetary-scale data is chunked, cloud-optimized, and open."
-**Landsat Migration to Zarr**: [Talk at recent Cloud Native Geospatial conference](https://www.youtube.com/watch?v=CUPJ48LbCX8)
+**ESA's Zarr Commitment**: The European Space Agency is [incrementally moving the Sentinel satellite archive to Zarr](https://zarr.eopf.copernicus.eu/), signaling that "the future of planetary-scale data is chunked, cloud-optimized, and open."  
+**LandSat Archive Migration to Zarr**: [Talk at recent Cloud Native Geospatial conference](https://www.youtube.com/watch?v=CUPJ48LbCX8)
 
 **Emerging Standards**:
 - **GeoZarr specification**: Standardizing geospatial metadata in Zarr
