@@ -12,12 +12,12 @@ profile: 'eo_pv_pipeline'
 #     project-id: 70471823477636
 
 # These configurations specify where dbt should look for different types of files.
-model-paths: ["models"]
-analysis-paths: ["analyses"]
+# model-paths: ["models"]
+# analysis-paths: ["analyses"]
 test-paths: ["tests"]
-seed-paths: ["seeds"]
+# seed-paths: ["seeds"]
 macro-paths: ["macros"]
-snapshot-paths: ["snapshots"]
+# snapshot-paths: ["snapshots"]
 
 target-path: "target"
 clean-targets:
@@ -31,7 +31,7 @@ models:
   eo_pv_pipeline:
     # Raw models - load data into DuckLake catalog
     raw:
-      +materialized: table
+      +materialized: view
       +database: eo_pv_lakehouse
 
     # Staging models - raw data with geopandas preprocessing (Python models)
@@ -41,7 +41,7 @@ models:
 
     # Prepared models - business logic transformations and data preparation
     prepared:
-      +materialized: table
+      +materialized: incremental
       +database: eo_pv_lakehouse
 
       # Overture Maps models should be views only to minimize storage
@@ -55,9 +55,13 @@ models:
         +materialized: table
 
     # Curated models - final analytical datasets
-    curated:
-      +materialized: materialized view
-      +schema: curated
+    # curated:
+    #   +materialized: materialized view
+    #   +schema: curated
+
+  # Disable dbt_artifacts models temporarily to avoid missing table errors
+  # dbt_artifacts:
+  #   +enabled: false
 
 # Seed configurations
 seeds:
@@ -101,7 +105,10 @@ vars:
 on-run-start:
   # Log target information for debugging
   - "{{ log('🎯 dbt target: ' ~ target.name, info=true) }}"
-  # Install and load required extensions for GeoParquet and DuckLake
+  # required for python models
+  - "INSTALL arrow"
+  - "LOAD arrow"
+  - "CALL register_geoarrow_extensions()"
   - "INSTALL spatial"
   - "LOAD spatial"
   - "INSTALL ducklake"
@@ -110,6 +117,13 @@ on-run-start:
   - "LOAD httpfs"
   - "INSTALL h3 FROM community"
   - "LOAD h3"
+  - "USE eo_pv_lakehouse;"
+  # Configure S3 settings for R2 access (both dev and prod use R2)
+  - "{% if target.name in ['dev', 'prod'] %}SET s3_access_key_id='{{ env_var('R2_ACCESS_KEY_ID') }}';{% endif %}"
+  - "{% if target.name in ['dev', 'prod'] %}SET s3_secret_access_key='{{ env_var('R2_SECRET_KEY') }}';{% endif %}"
+  - "{% if target.name in ['dev', 'prod'] %}SET s3_endpoint='{{ env_var('CLOUDFLARE_ACCOUNT_ID') }}.r2.cloudflarestorage.com';{% endif %}"
+  - "{% if target.name in ['dev', 'prod'] %}SET s3_use_ssl=true;{% endif %}"
+  - "{% if target.name in ['dev', 'prod'] %}SET s3_url_style='path';{% endif %}"
   # Note: geography extension temporarily commented out due to availability issues
   # - "INSTALL geography FROM community"
   # - "LOAD geography"

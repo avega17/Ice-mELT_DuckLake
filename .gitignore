@@ -336,3 +336,4 @@ cache/
 !docs/assets/
 !docs/images/
 data_loaders/stg/consolidation/tmp.sql
+.neon_local/

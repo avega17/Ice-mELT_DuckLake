@@ -1,0 +1,80 @@
+services:
+  # Neon Local - creates ephemeral branches using API key + Project ID
+  # Automatically creates dev branch on start, deletes on stop
+  db:
+    image: neondatabase/neon_local:latest
+    container_name: ducklake-neon-local
+    ports:
+      - "5432:5432"
+    environment:
+      # Required: Neon API credentials (from .env file)
+      NEON_API_KEY: ${NEON_API_KEY}
+      NEON_PROJECT_ID: ${NEON_PROJECT_ID}
+      # Use postgres driver for DuckLake compatibility (not serverless)
+      DRIVER: postgres
+      # Branch from production data (using branch ID, not name)
+      PARENT_BRANCH_ID: br-cold-paper-a49fa6b9
+      # Auto-cleanup branches for clean dev workflow
+      DELETE_BRANCH: true
+    # volumes:
+      # Persistent Git branch functionality disabled - using ephemeral branches only
+      # - ./.neon_local:/tmp/.neon_local
+      # - ./.git/HEAD:/tmp/.git/HEAD:ro
+    networks:
+      - ducklake-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U neon"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # DuckDB service for local development and testing
+  # duckdb-workspace:
+  #   image: duckdb/duckdb:latest
+  #   container_name: ducklake-duckdb
+  #   volumes:
+  #     # Mount your project directories
+  #     - ./db:/workspace/db
+  #     - ./data_loaders:/workspace/data_loaders
+  #     - ./eo-pv-elt:/workspace/eo-pv-elt
+  #     - .:/workspace
+  #   working_dir: /workspace
+  #   networks:
+  #     - ducklake-network
+  #   depends_on:
+  #     neon-local:
+  #       condition: service_healthy
+  #   # Keep container running for interactive use
+  #   tty: true
+  #   stdin_open: true
+  #   command: ["tail", "-f", "/dev/null"]
+  #   profiles:
+  #     - duckdb  # Start with: docker-compose --profile duckdb up
+
+  # Optional: pgAdmin for database management and DuckLake catalog inspection
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: ducklake-pgadmin
+    ports:
+      - "8080:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@ducklake.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - ducklake-network
+    depends_on:
+      neon-local:
+        condition: service_healthy
+    profiles:
+      - tools  # Optional service, start with: docker-compose --profile tools up
+
+volumes:
+  pgadmin_data:
+
+networks:
+  ducklake-network:
+    driver: bridge

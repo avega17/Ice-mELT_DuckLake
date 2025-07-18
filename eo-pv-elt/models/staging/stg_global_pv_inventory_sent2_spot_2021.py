@@ -43,7 +43,7 @@ def model(dbt, session):
 
     # Configure model
     dbt.config(
-        materialized='table',
+        # materialized='table',
         indexes=[
             {'columns': ['dataset_name'], 'type': 'btree'},
             {'columns': ['h3_index_12'], 'type': 'btree'},
@@ -58,8 +58,11 @@ def model(dbt, session):
 
 
     # Use dbt's built-in target information
-    target_name = os.getenv('DBT_TARGET', 'dev')
-    is_prod_target = target_name == 'prod' or dbt.config.get('target_name') == 'prod'
+    print(f"   dbt config target: {dbt.config.get('target')} | dbt env target: {os.getenv('DBT_TARGET')}")
+    env_target = os.getenv('DBT_TARGET', 'dev')
+    # target_name = dbt.config.get('target_name', 'dev') if env_target == 'dev' else dbt.config.get('target_name', 'prod')
+    target_name = env_target
+    is_prod_target = target_name == 'prod'
 
     os.environ['DBT_TARGET'] = target_name  # Ensure it's set for Hamilton
 
@@ -136,19 +139,34 @@ def model(dbt, session):
     present_spatial = [col for col in spatial_columns if col in columns]
     print(f"      - Spatial columns: {present_spatial}")
 
-    # Ensure proper data types for H3 column (handle None values first)
-    if h3_column_name in df.columns:
-        # Handle None values in H3 column before type conversion
-        h3_series = df[h3_column_name]
-        non_null_count = h3_series.notna().sum()
-        print(f"      - H3 column has {non_null_count}/{len(h3_series)} non-null values")
+    # Verify spatial columns are present
+    columns = list(df.columns)
+    h3_column_name = f"h3_index_{h3_dedup_res}"
+    spatial_columns = ['area_m2', 'centroid_lat', 'centroid_lon', h3_column_name]
+    present_spatial = [col for col in spatial_columns if col in columns]
+    print(f"      - Spatial columns: {present_spatial}")
 
-        if non_null_count > 0:
-            # Convert to string first, then to uint64 (handles None values gracefully)
-            df[h3_column_name] = pd.to_numeric(df[h3_column_name], errors='coerce').astype('Int64')
-            print(f"      - Converted {h3_column_name} to Int64 (nullable) for optimal performance")
-        else:
-            print(f"      - Warning: All H3 values are null, keeping as-is")
+    # Ensure proper data types for H3 column (uint64 for optimal performance)
+    if h3_column_name in df.columns:
+        # Convert H3 column to uint64 if it's not already
+        if df[h3_column_name].dtype != 'uint64':
+            df[h3_column_name] = df[h3_column_name].astype('uint64')
+            print(f"      - Converted {h3_column_name} to uint64 for optimal performance")
+
+    # Explicitly cast problematic columns to prevent DuckDB INTEGER inference on NULL values
+    cast_columns = {
+        'source_area_m2': 'float64'
+        , 'capacity_mw': 'float64'
+        , 'install_date': 'object'# VARCHAR equivalent in pandas
+        # 'area_m2': 'float64',
+        # 'centroid_lat': 'float64',
+        # 'centroid_lon': 'float64'
+    }
+
+    for col_name, target_dtype in cast_columns.items():
+        if col_name in df.columns:
+            df[col_name] = df[col_name].astype(target_dtype)
+            print(f"      - Cast {col_name} to {target_dtype} to prevent INTEGER inference")
 
     print(f"   📋 Final DataFrame shape: {df.shape}")
     print(f"   📋 Final columns: {list(df.columns)}")

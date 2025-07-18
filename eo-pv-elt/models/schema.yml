@@ -7,53 +7,52 @@ models:
     columns:
       # Actual columns from the dataset (all as varchar to prevent casting errors)
       - name: polygon_id
-        data_type: varchar
+        data_type: int
       - name: centroid_latitude
-        data_type: varchar
+        data_type: double
       - name: centroid_longitude
-        data_type: varchar
+        data_type: double
       - name: centroid_latitude_pixels
-        data_type: varchar
+        data_type: double
       - name: centroid_longitude_pixels
-        data_type: varchar
+        data_type: double
       - name: city
         data_type: varchar
       - name: area_pixels
-        data_type: varchar
+        data_type: double
       - name: area_meters
-        data_type: varchar
+        data_type: double
       - name: image_name
         data_type: varchar
       - name: nw_corner_of_image_latitude
-        data_type: varchar
+        data_type: double
       - name: nw_corner_of_image_longitude
-        data_type: varchar
+        data_type: double
       - name: se_corner_of_image_latitude
-        data_type: varchar
+        data_type: double
       - name: se_corner_of_image_longitude
-        data_type: varchar
+        data_type: double
       - name: datum
         data_type: varchar
       - name: projection_zone
-        data_type: varchar
+        data_type: int
       - name: resolution
-        data_type: varchar
+        data_type: double
       - name: jaccard_index
-        data_type: varchar
+        data_type: double
       - name: polygon_vertices_pixels
+        data_type: int
+      - name: bbox
         data_type: varchar
+        # New columns added by raw model
       - name: dataset_name
         data_type: varchar
       - name: source_file
-        data_type: varchar
-      - name: bbox
         data_type: varchar
       - name: geometry_wkt
         data_type: varchar
       - name: geometry_wkb
         data_type: blob
-      - name: dataset_name_1
-        data_type: varchar
       - name: doi
         data_type: varchar
       - name: repo
@@ -70,59 +69,58 @@ models:
     columns:
       # Actual columns from the dataset (all as varchar to prevent casting errors)
       - name: osm_id
-        data_type: varchar
+        data_type: int
       - name: osm_name
         data_type: varchar
       - name: osm_objtype
         data_type: varchar
       - name: repd_id
-        data_type: varchar
+        data_type: int
       - name: repd_site_name
         data_type: varchar
       - name: capacity_repd_MWp
-        data_type: varchar
+        data_type: double
       - name: capacity_osm_MWp
-        data_type: varchar
+        data_type: double
       - name: area_sqm
-        data_type: varchar
+        data_type: double
       - name: located
         data_type: varchar
       - name: orientation
-        data_type: varchar
+        data_type: int
       - name: osm_power_type
         data_type: varchar
       - name: osm_tag_start_date
-        data_type: varchar
+        data_type: timestamp
       - name: num_modules
-        data_type: varchar
+        data_type: int
       - name: repd_status
         data_type: varchar
       - name: repd_operational_date
-        data_type: varchar
+        data_type: timestamp
       - name: old_repd_id
-        data_type: varchar
+        data_type: int
       - name: osm_cluster_id
-        data_type: varchar
+        data_type: int
       - name: repd_cluster_id
-        data_type: varchar
+        data_type: int
       - name: source_capacity
         data_type: varchar
       - name: source_obj
         data_type: varchar
       - name: match_rule
         data_type: varchar
+      - name: bbox
+        data_type: varchar
+        # New columns added by raw model
       - name: dataset_name
         data_type: varchar
       - name: source_file
-        data_type: varchar
-      - name: bbox
         data_type: varchar
       - name: geometry_wkt
         data_type: varchar
       - name: geometry_wkb
         data_type: blob
-      - name: dataset_name_1
-        data_type: varchar
       - name: doi
         data_type: varchar
       - name: repo
@@ -138,7 +136,11 @@ models:
     description: "Raw China Medium Resolution PV 2024 dataset"
     columns:
       # Original columns from source data (all as varchar to prevent casting errors)
-      - name: id
+      - name: FID_Train
+        data_type: int
+      - name: OID_
+        data_type: int
+      - name: Name
         data_type: varchar
       - name: province
         data_type: varchar
@@ -244,77 +246,7 @@ models:
       - name: dbt_loaded_at
         data_type: timestamp
 
-  - name: raw_ind_pv_solar_farms_2022
-    description: "Raw India PV Solar Farms 2022 dataset"
-    columns:
-      # Actual columns from the dataset (all as varchar to prevent casting errors)
-      - name: State
-        data_type: varchar
-      - name: Area
-        data_type: varchar
-      - name: Latitude
-        data_type: varchar
-      - name: Longitude
-        data_type: varchar
-      - name: fid
-        data_type: varchar
-      - name: dataset_name
-        data_type: varchar
-      - name: source_file
-        data_type: varchar
-      - name: bbox
-        data_type: varchar
-      - name: geometry_wkt
-        data_type: varchar
-      - name: geometry_wkb
-        data_type: blob
-      - name: dataset_name_1
-        data_type: varchar
-      - name: doi
-        data_type: varchar
-      - name: repo
-        data_type: varchar
-      - name: paper_doi
-        data_type: varchar
-      - name: paper_title
-        data_type: varchar
-      - name: dbt_loaded_at
-        data_type: timestamp
-
-  - name: raw_global_pv_inventory_sent2_spot_2021
-    description: "Raw Global PV Inventory Sentinel-2 SPOT 2021 dataset"
-    columns:
-      # Original columns from source data (all as varchar to prevent casting errors)
-      - name: id
-        data_type: varchar
-      - name: country
-        data_type: varchar
-      - name: region
-        data_type: varchar
-      - name: capacity_mw
-        data_type: varchar
-      - name: area_m2
-        data_type: varchar
-      - name: install_date
-        data_type: varchar
-      # New columns added by raw model
-      - name: geometry_wkt
-        data_type: varchar
-      - name: geometry_wkb
-        data_type: blob
-      - name: dataset_name
-        data_type: varchar
-      - name: doi
-        data_type: varchar
-      - name: repo
-        data_type: varchar
-      - name: paper_doi
-        data_type: varchar
-      - name: paper_title
-        data_type: varchar
-      - name: dbt_loaded_at
-        data_type: timestamp
-  # Staging Layer - Ibis model with Hamilton DAG integration
+  # Staging Layer - sql model that references individual staging models that use Hamilton DAG integration
   - name: stg_pv_consolidated
     description: "Consolidated staging table of processed PV installation geometries from all DOI datasets"
     columns:

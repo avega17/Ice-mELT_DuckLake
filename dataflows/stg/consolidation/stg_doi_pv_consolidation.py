@@ -69,7 +69,7 @@ def _create_ducklake_connection(
     Create Ibis connection to DuckLake using environment variable configuration.
 
     Uses DUCKLAKE_CONNECTION_STRING environment variable for dynamic connection:
-    - DEV: ducklake:sqlite:/path/to/catalog.sqlite (DATA_PATH '/path/to/data/')
+    - DEV: ducklake:postgres:host=localhost port=5432 dbname=neondb user=neon password=npg (DATA_PATH '/path/to/data/')
     - PROD: ducklake:postgres:dbname=... (DATA_PATH 's3://bucket/path/')
 
     Args:
@@ -111,7 +111,7 @@ def _create_ducklake_connection(
 
                     # Parse the connection string to match your working CLI format exactly
                     if ' (DATA_PATH ' in ducklake_connection_string:
-                        # Split: "ducklake:sqlite:path (DATA_PATH 'datapath')"
+                        # Split: "ducklake:postgres:... (DATA_PATH 'datapath')" or legacy sqlite format
                         catalog_part = ducklake_connection_string.split(' (DATA_PATH ')[0]
                         data_part = ducklake_connection_string.split(' (DATA_PATH ')[1].rstrip(')')
                         # Reconstruct like your CLI: ATTACH 'catalog' AS alias (DATA_PATH 'path');
@@ -129,8 +129,8 @@ def _create_ducklake_connection(
                     conn.execute("INSTALL spatial; LOAD spatial;")
                     conn.execute("INSTALL h3 FROM community; LOAD h3;")
 
-                    # Configure S3 settings for production (Cloudflare R2)
-                    if target_name == 'prod':
+                    # Configure S3 settings for R2 access (both dev and prod use R2)
+                    if target_name in ['dev', 'prod']:
                         try:
                             conn.execute("INSTALL httpfs; LOAD httpfs;")
 
@@ -281,9 +281,10 @@ def _create_ducklake_connection(
             """
 
         else:
-            # SQLite catalog for local deployment (existing pattern)
-            ducklake_connection_string = f"ducklake:sqlite:{full_catalog_path}"
-            print(f"🔗 Attaching DuckLake SQLite: {ducklake_connection_string}")
+            # PostgreSQL catalog for local deployment (unified with prod)
+            ducklake_connection_string = os.getenv('DUCKLAKE_CONNECTION_STRING',
+                                                  'ducklake:postgres:host=localhost port=5432 dbname=neondb user=neon password=npg')
+            print(f"🔗 Attaching DuckLake PostgreSQL: {ducklake_connection_string}")
 
             attach_sql = f"""
             ATTACH '{ducklake_connection_string}' AS eo_pv_lakehouse

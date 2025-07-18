@@ -48,10 +48,10 @@ Research labs and small-medium companies primarily deal with **"medium data"** -
 
 Modern hardware capabilities have fundamentally shifted what constitutes "Big Data":
 
-**2004 (MapReduce era)**: Single machine = 1 core, 2GB RAM
+**2004 (MapReduce era)**: Single machine = 1 core, 2GB RAM  
 **2025**: Single machine = 64+ cores, 24TB+ RAM (AWS x1e.xlarge)
 
-**Result**: What required distributed systems in 2004 now runs efficiently on a laptop.
+**Result**: What required distributed systems in 2004 now runs efficiently on a reasonably modern laptop.
 
 ### DuckDB and the Single-Node Advantage
 
@@ -59,9 +59,9 @@ DuckDB exemplifies this shift:
 - **Columnar processing** with vectorized execution
 - **Parallel query execution** on multi-core systems  
 - **Memory-efficient** algorithms for larger-than-RAM datasets
-- **Zero administration** - no clusters, no configuration complexity
+- **Zero administration** - no clusters, no server configuration complexity
 
-**Performance Reality**: A single DuckDB instance often outperforms distributed systems for typical *analytical workloads* while being orders of magnitude simpler to operate.
+**Performance Reality**: A single DuckDB instance often outperforms distributed systems for typical *analytical workloads* while being considerably simpler to operate.
 
 ## Cloud Advantages with Scaling-to-Zero
 
@@ -71,23 +71,22 @@ Following [Tobias Müller's analysis](https://tobilg.com/the-age-of-10-dollar-a-
 
 **Free Tier Optimization**:
 - **Cloudflare R2**: 10GB storage + free egress
-- **MotherDuck**: 10GB analytical processing  
-- **Neon PostgreSQL**: 0.5GB for metadata
-- **Supabase**: Alternative PostgreSQL option for BaaS
+- **MotherDuck**: 10GB analytical processing + 10 compute hours
+- **Neon PostgreSQL**: 0.5GB for metadata + 190 compute hours
 
-**Scaling-to-Zero Benefits**:
+**Scaling-to-Zero Serverless Benefits**:
 - **Pay only for active compute** (serverless functions, containers)
-- **Automatic scaling** based on actual demand
+- **Automatic scaling** based on actual demand up to configured limits or budget
 - **No idle infrastructure costs** during research downtime or local development iteration
 
 ### Storage Efficiency Through Virtual Datasets
 
 **VirtualiZarr Approach**:
 - Reference original satellite imagery assets via STAC catalogs
-- Avoid duplicating hundreds of GB of high-fidelity data
-- Manage metadata and derived products in minimal storage
+- Avoid duplicating Terabytes of high-fidelity imagery and historical reanalysis data products
+- Manage metadata and derived products in minimal storage by referencing original public cloud assets
 
-**Result**: Process hundreds of GB of imagery while using only a few GB's of actual object storage.
+**Result**: Process hundreds of GB of imagery while using 1-2 orders of magnitude less of actual object storage.
 
 ## DuckLake: SQL as Lakehouse Metadata
 
@@ -95,7 +94,7 @@ Following [Tobias Müller's analysis](https://tobilg.com/the-age-of-10-dollar-a-
 
 Iceberg and Delta Lake were designed to avoid databases entirely, encoding all metadata into "a maze of JSON and Avro files" on blob storage. However, they hit a critical limitation: as soon as you need something as ambitious as a second table or versioning, you realize **finding the latest table version is tricky in blob stores** with inconsistent guarantees. The solution? Adding a catalog service backed by... a database.
 
-**The Irony**: After going to great lengths to avoid databases, both formats ended up requiring one anyway for consistency. Yet they never revisited their core design to leverage this database effectively.
+**The Irony**: After going to great lengths to avoid databases, both formats ended up requiring one anyway for consistency via a DBMS catalog REST service. Yet they never revisited their core design to leverage this database effectively.
 
 **Addressing Iceberg's Limitations**:
 
@@ -123,13 +122,14 @@ DuckLake addresses these limitations by storing metadata in a transactional SQL 
 <div align="center">
     <figure>
         <img src="../figures/dbms_are_good_actually.png" alt="DuckLake as Mike Ermantraut" width="60%">
-        <figcaption align = "center"> <a href="https://dataengineeringcentral.substack.com/i/165014999/oh-yeah-ducklake"> “The basic design of DuckLake is to <strong>move all metadata structures into a SQL database</strong>.” </a> </figcaption>
+        <figcaption align = "center"> <a href="https://dataengineeringcentral.substack.com/i/165014999/oh-yeah-ducklake"> 
+        “The basic design of DuckLake is to <strong>move all metadata structures into a SQL database</strong>.” </a> </figcaption>
     </figure>
 </div>
 
 > *"Once a database has entered the Lakehouse stack anyway, it makes an insane amount of sense to also use it for managing the rest of the table metadata! We can still take advantage of the 'endless' capacity and 'infinite' scalability of blob stores for storing the actual table data in open formats like Parquet, but we can much more efficiently and effectively manage the metadata needed to support changes in a database!"*
 
--- [The DuckLake Manifesto: SQL as a Lakehouse Format](https://ducklake.select/manifesto/#ducklake)
+-- [The DuckLake Manifesto: SQL as a Lakehouse Format](https://ducklake.select/manifesto/#ducklake)  
 
 **Core Design Principles**:
 1. **Store data files** in open formats on blob storage (scalability, no lock-in)
@@ -149,6 +149,70 @@ DuckLake addresses these limitations by storing metadata in a transactional SQL 
 - **Advanced database features** like views, nested types, transactional schema changes
 - **Single query access** vs. multiple HTTP requests to blob storage
 
+## MotherDuck: Hybrid Query Processing Now Coming to a Lakehouse Near You
+
+### The Medium Data Revolution
+
+MotherDuck challenges the "Big Data" and Cloud Data Warehouse orthodoxy with a focus on **hybrid query processing**. 
+
+**The Core Innovation**: Instead of forcing all computation to the cloud (expensive to run always-on services, but low-latency access to object storage) or all computation to the client (high-latency to remote storage, but inexpensive and higher performance than lower tier cloud instances), MotherDuck's **hybrid query processing** during query planning determines the optimal execution location for each query fragment based on data locality and resource requirements.
+
+### Hybrid Query Processing Architecture
+
+<div align="center">
+    <figure>
+        <img src="../figures/motherduck-hybrid-architecture.png" alt="MotherDuck Hybrid Query Processing" width="70%">
+        <figcaption align = "center"> MotherDuck's hybrid query processing intelligently routes query fragments between local DuckDB and cloud compute based on data locality and resource requirements. </figcaption>
+    </figure>
+</div>
+
+**Key Technical Components**:
+
+1. **Order-aware Bridge Operators**: Download and upload tuple streams between client and cloud, handling asymmetrical bandwidth and data locality
+2. **Remote-local Optimizer**: Splits query plans into fragments, designating each for local or remote execution with "bridge operators" in between
+3. **Virtual Catalog**: Local DuckDB maintains metadata about cloud-resident databases through MotherDuck's proxy catalog
+4. **Declarative Caching**: Results accumulate in local cache, managed by DuckDB-wasm in browser environments
+
+### DuckLake + MotherDuck: Warehouse Speed at Lake Scale
+
+MotherDuck's [managed DuckLake](https://motherduck.com/blog/announcing-ducklake-support-motherduck-preview/) offering combines the simplicity of DuckLake's SQL-first metadata with MotherDuck's hybrid processing capabilities.
+
+**Unified Architecture Benefits**:
+- **10-100x faster metadata lookups**: Database indexes beat file scanning every time
+- **Instant partition pruning**: SQL WHERE clauses on metadata, not file traversal (actually expensive HTTP requests!)
+- **Rapid writes at scale**: No complex manifest file merging, just database transactions
+- **Petabyte scalability**: Virtual raster datasets + DuckLake architecture for planetary EO analysis
+- **Temporal scaling**: Time travel across millions of snapshots without performance degradation
+
+**Note on Current Limitations**: While MotherDuck doesn't yet *directly* support attaching external DuckLake catalogs like PostgreSQL, this can be worked around by attaching via a local DuckDB client and using MotherDuck for the compute/query engine.
+
+### Capacity for Planetary-Scale EO Analysis
+
+The combination of **DuckLake + MotherDuck + Virtual Datasets** enables capacity for Earth observation research:
+
+**Scaling Dimensions**:
+- **Spatial**: Multi-country to planetary coverage through intelligent partitioning
+- **Temporal**: Many years of historical data with time travel queries
+- **Spectral**: Multi-sensor fusion across different satellite platforms (MODIS, LandSat, Sentinel2, Maxar sensors)
+- **Analytical**: From laptop prototyping and iterative development to cloud production with identical codebase 
+- **Compute vs Storage vs Metadata**: Ducklake adds another dimension to scale; storage, compute, AND metadata can all scale independently
+
+
+**Virtual Raster Integration**: By combining DuckLake's metadata management with virtual raster datasets (see below) and Motherduck's sharing capabilities, research groups can:
+- Query petabytes of satellite imagery without data movement or duplication
+- Perform temporal analysis across many years of observations
+- Scale from local development to cloud production seamlessly
+- Maintain cost efficiency through intelligent caching and query routing
+- Collaborate with team members through [Motherduck's multi-user sharing and access controls](https://motherduck.com/docs/key-tasks/sharing-data/sharing-overview/) where each user gets [their own user-configurable compute instance](https://motherduck.com/blog/scaling-duckdb-with-ducklings/) instead of contention over shared compute resources
+
+**References**:
+1. [MotherDuck CIDR Paper: Hybrid Query Processing](https://motherduck.com/blog/cidr-paper-hybrid-query-processing-motherduck/)
+2. [Paper Summary: MotherDuck DuckDB in the Cloud and Client](https://hemantkgupta.medium.com/insight-from-paper-motherduck-duckdb-in-the-cloud-and-in-the-client-e4a73da9dbec)
+3. [DuckLake Announcement: A Duck Walks into a Lake](https://motherduck.com/blog/ducklake-motherduck/)
+4. [What is DuckLake? Interview with DuckDB + DuckLake Creators](https://motherduck.com/videos/137/what-is-ducklake-a-simpler-data-lake-warehouse-with-duckdb/)
+5. [MotherDuck DuckLake Support Preview](https://motherduck.com/blog/announcing-ducklake-support-motherduck-preview/)
+6. [MotherDuck DuckLake Documentation](https://motherduck.com/docs/integrations/file-formats/ducklake/)
+
 ## STAC, Zarr, and Virtual Datasets: The Future of EO Data
 
 References:
@@ -157,22 +221,27 @@ References:
 3. [Zarr + STAC](https://element84.com/software-engineering/zarr-stac/)
 4. [Fundamentals: Tensors vs. Tables](https://earthmover.io/blog/tensors-vs-tables)
 
-### The Cloud-Native Array Revolution
+### Cloud-Native Geospatial
 
-**Zarr as "Parquet for Arrays"**: While Parquet optimizes columnar storage for tabular data, Zarr provides chunked storage for multi-dimensional arrays. Both are designed for analytics and scalable access patterns in cloud environments.
+Cloud-native geospatial refers to the practice of leveraging cloud-based technologies and architectures to leverage "distributed computing, serverless architectures, high-capacity storage, and managed services" to meet the ["growing demands for processing and analyzing spatial data"](https://cloudnativegeo.org/blog/2025/02/why-does-cloud-native-geospatial-matter-to-gis-professionals/). Earth Observation and Long running time series of geospatial data is one context where many-terabyte datasets are becoming more common and all the [accessibility and cost barries that come with them](https://arxiv.org/html/2506.13256v1). 
 
-**Why Zarr Matters for EO Research**:
-- **Chunked storage** enables selective data loading - only read what you need
-- **Cloud-optimized layout** works efficiently with object storage (S3, GCS)
-- **Parallel access** supports distributed computing frameworks
-- **Self-describing metadata** embedded directly with data
+**Cloud-Native Arrays**: Zarr is an open-source protocol and a community-maintained storage format for datasets of large-scale n-dimensional arrays, like measurements over time, space, or other variables, as N-dimensional arrays. [\[1\]](https://earthmover.io/blog/what-is-zarr).  
+Zarr provides **flexible indexing and compatibility with object storage lends itself to parallel processing**: "A Zarr chunk is Zarr’s unit of data storage. Each chunk of a Zarr array is an equally-sized block of the array within a larger Zarr store." [\[2\]](https://guide.cloudnativegeo.org/zarr/intro.html) 
 
 <div align="center">
     <figure>
         <img src="../figures/zarr_cube_diagram.png" alt="zarr-storage-layout" width="25%">
-        <figcaption align = "center"> Zarr's chunked storage layout enables efficient access to subsets of large arrays using relevant spatio-temporal indexing. </figcaption>
+        <figcaption align = "center"> Zarr's chunked storage layout enables efficient access to subsets of large arrays using relevant spatio-temporal indexing. </figcaption>  
     </figure>
 </div>
+
+**Zarr as "Parquet for Arrays"**: While Parquet optimizes columnar storage for tabular data, Zarr provides chunked storage for multi-dimensional arrays. Both are designed for analytics and scalable access patterns in cloud environments.
+
+*Why Zarr Matters for EO Research*:
+- **Chunked storage** enables selective data loading - only read what you need
+- **Cloud-optimized layout** works efficiently with object storage (S3, GCS)
+- **Parallel access** supports distributed computing frameworks
+- **Self-describing metadata** embedded directly with data
 
 ### The Fundamental Advantage: Arrays vs Tables for Geospatial Data
 
@@ -267,7 +336,7 @@ References:
 4. **DuckLake manages** these Parquet-stored references alongside vector PV data
 5. **Result**: Unified SQL interface for both vector labels and raster imagery references
 
-This approach combines the best of all worlds: STAC discovery, Zarr array processing, Parquet efficiency, and DuckLake's SQL-based metadata management - all without duplicating the underlying satellite imagery.
+This approach combines the best of all worlds: STAC discovery, Zarr array processing, Parquet efficiency, and DuckLake's SQL-based metadata management - **all without duplicating the underlying satellite imagery and limiting data volume to our Areas-of-Interest**.
 
 References:
 1. [Store virtual datasets as Kerchunk Parquet references](https://projectpythia.org/kerchunk-cookbook/notebooks/advanced/Parquet_Reference_Storage.html)
@@ -433,6 +502,7 @@ As highlighted in [ML4Devs analysis](https://www.ml4devs.com/en/articles/who-car
 ### Industry Adoption and Future-Proofing
 
 **ESA's Zarr Commitment**: The European Space Agency is [incrementally moving the Sentinel satellite archive to Zarr](https://zarr.eopf.copernicus.eu/), signaling that "the future of planetary-scale data is chunked, cloud-optimized, and open."
+**Landsat Migration to Zarr**: [Talk at recent Cloud Native Geospatial conference](https://www.youtube.com/watch?v=CUPJ48LbCX8)
 
 **Emerging Standards**:
 - **GeoZarr specification**: Standardizing geospatial metadata in Zarr
@@ -467,9 +537,9 @@ As highlighted in [ML4Devs analysis](https://www.ml4devs.com/en/articles/who-car
 
 ### Technology Evolution Path
 
-**Current State**: ✅ **Implemented** - Hamilton + dbt Python models + MotherDuck + Neon cloud integration
-**Near-term**: STAC catalog integration for satellite imagery + pgstac in Neonfor metadata management
-**Long-term**: Full DuckLake lakehouse with STAC catalogs via Iceberg+PostgreSQL + linked to Satellite Imaegry catalog via VirtualiZarr
+**Current State**: ✅ (*Initial Implementation*) - Hamilton + dbt Python models + MotherDuck + Neon cloud integration for DuckLake catalog  
+**Near-term**: STAC catalog integration for satellite imagery + pgstac in Neonfor metadata management  
+**Medium-term**: Integrated DuckLake lakehouse with STAC catalogs via Iceberg+PostgreSQL + linked to Satellite Imaegry catalog via VirtualiZarr  
 
 ### Real-World Implementation Strategy
 
@@ -481,7 +551,7 @@ As highlighted in [ML4Devs analysis](https://www.ml4devs.com/en/articles/who-car
 - ✅ **Cloud deployment** with MotherDuck + Cloudflare R2 + Neon PostgreSQL
 - ✅ **443,917+ PV installations** processed from 6 validated DOI sources
 
-**Phase 2: STAC Catalog Foundation** 🔄 **In Progress**
+**Phase 2: STAC Catalog Foundation** 🔄 **Getting Started**
 - **Index existing PV datasets** in STAC collections
 - **Standardize metadata** across different DOI sources
 - **Enable spatial/temporal search** for PV installations

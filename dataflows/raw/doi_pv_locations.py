@@ -475,7 +475,7 @@ def collected_arrow_tables__sequential(
 @config.when(execution_mode="parallel")
 def pipeline_result__parallel(
     collected_arrow_tables: List[pa.Table],  # Reference base name, not suffixed version
-    database_path: str = "ducklake:sqlite:db/ducklake_catalog.sqlite",
+    database_path: str = None,  # Will use DUCKLAKE_CONNECTION_STRING env var
     export_geoparquet: bool = True,
     export_path: str = None,
     use_cloud_export: bool = False
@@ -489,7 +489,7 @@ def pipeline_result__parallel(
 @config.when(execution_mode="sequential")
 def pipeline_result__sequential(
     collected_arrow_tables: List[pa.Table],  # Reference base name, not suffixed version
-    database_path: str = "ducklake:sqlite:db/ducklake_catalog.sqlite",
+    database_path: str = None,  # Will use DUCKLAKE_CONNECTION_STRING env var
     export_geoparquet: bool = True,
     export_path: str = None,
     use_cloud_export: bool = False

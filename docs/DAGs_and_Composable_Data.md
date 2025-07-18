@@ -252,12 +252,12 @@ data_products = [
 Our stack enables seamless transitions between SQL and DataFrame paradigms:
 
 ```
-Hamilton (Python/Pandas) ↔ DuckDB (SQL) ↔ dbt (SQL/Python) ↔ Ibis (DataFrame API)
+Hamilton (Python/Pandas) ↔ dbt (SQL/Python) ↔ DuckDB (SQL) ↔ Ibis (DataFrame API)
 ```
 
 ### DuckDB as the Universal Translator
 
-DuckDB provides the bridge between paradigms:
+DuckDB provides the bridge between in-memory DataFrame APIs, SQL, and a variety of external data sources:
 
 ```python
 # Hamilton loads data
@@ -321,7 +321,7 @@ def arrow_pipeline(data: pd.DataFrame) -> pa.Table:
 Zero-copy operations provide substantial performance benefits for medium data workloads:
 
 - **Memory efficiency**: Single memory allocation shared across tools
-- **CPU reduction**: Eliminates serialization/deserialization cycles
+- **CPU reduction**: Eliminates constant serialization/deserialization costs
 - **Cache locality**: Columnar layout optimizes CPU cache usage
 - **Bandwidth optimization**: Reduces memory bus pressure
 
@@ -783,14 +783,14 @@ The stack grows with your needs:
 ```
 Local Development → Cloud Scaling → Enterprise Features
      ↓                    ↓                ↓
-  Hamilton           MotherDuck        DAGWorks Platform
-  DuckDB             dbt Cloud         Enterprise Security
-  Local Files        Cloud Storage     Compliance Tracking
+  Hamilton           MotherDuck        Access Control and Data Governance
+  DuckDB             dbt Cloud         Enterprise Security and Encryption
+  Local Files        Cloud Storage     Compliance Tracking and Auditing
 ```
 
 ## Conclusion
 
-The modern data stack integration of Hamilton, dbt, Ibis, DuckDB, and Apache Arrow creates a powerful foundation for data work that:
+The modern data stack integration of Hamilton, dbt, Ibis, DuckDB, and Apache Arrow creates a powerful foundation for data analyticswork that:
 
 - **Multiplies productivity** through expressive, composable tools
 - **Encodes lineage as code** eliminating external tracking systems

@@ -120,8 +120,9 @@ def run_doi_pv_pipeline(
     # Use environment variables or defaults for paths
     if database_path is None:
         if use_ducklake:
-            # Use DuckLake SQLite catalog by default
-            database_path = f"ducklake:sqlite:{os.path.relpath(os.path.join(REPO_ROOT, 'db', 'ducklake_catalog.sqlite'))}"
+            # Use DuckLake PostgreSQL catalog (unified dev/prod)
+            database_path = os.getenv('DUCKLAKE_CONNECTION_STRING',
+                                    'ducklake:postgres:host=localhost port=5432 dbname=neondb user=neon password=npg')
         else:
             # Use regular DuckDB database
             database_path = os.path.join(REPO_ROOT, "db", "eo_pv_data.duckdb")

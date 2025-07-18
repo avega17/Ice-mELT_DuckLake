@@ -45,7 +45,7 @@ def model(dbt, session):
 
     # Configure model
     dbt.config(
-        materialized='table',
+        # materialized='table',
         indexes=[
             {'columns': ['dataset_name'], 'type': 'btree'},
             {'columns': ['h3_index_12'], 'type': 'btree'},
@@ -59,10 +59,12 @@ def model(dbt, session):
     from hamilton.execution import executors
 
     # Use DBT_TARGET environment variable set by target scripts
-    target_name = os.getenv('DBT_TARGET', 'dev')
-    is_prod_target = target_name == 'prod' or dbt.config.get('target_name') == 'prod'
+    print(f"   dbt config target: {dbt.config.get('target_name')} | dbt env target: {os.getenv('DBT_TARGET')}")
+    env_target = os.getenv('DBT_TARGET', 'dev')
+    # target_name = dbt.config.get('target_name', 'dev') if env_target == 'dev' else dbt.config.get('target_name', 'prod')
+    target_name = env_target
+    is_prod_target = target_name == 'prod'
 
-    print(f"   🎯 Target from DBT_TARGET env var: {target_name}")
     print(f"   🎯 Target detected: {'PROD' if is_prod_target else 'DEV'}")
 
     if is_prod_target:
@@ -141,6 +143,21 @@ def model(dbt, session):
         if df[h3_column_name].dtype != 'uint64':
             df[h3_column_name] = df[h3_column_name].astype('uint64')
             print(f"      - Converted {h3_column_name} to uint64 for optimal performance")
+
+    # Explicitly cast problematic columns to prevent DuckDB INTEGER inference on NULL values
+    cast_columns = {
+        'source_area_m2': 'float64'
+        , 'capacity_mw': 'float64'
+        , 'install_date': 'object'# VARCHAR equivalent in pandas
+        # 'area_m2': 'float64',
+        # 'centroid_lat': 'float64',
+        # 'centroid_lon': 'float64'
+    }
+
+    for col_name, target_dtype in cast_columns.items():
+        if col_name in df.columns:
+            df[col_name] = df[col_name].astype(target_dtype)
+            print(f"      - Cast {col_name} to {target_dtype} to prevent INTEGER inference")
 
     print(f"   📋 Final DataFrame shape: {df.shape}")
     print(f"   📋 Final columns: {list(df.columns)}")

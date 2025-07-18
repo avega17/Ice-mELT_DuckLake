@@ -26,26 +26,6 @@ Ensure you have the following environment variables set:
 - **Use case**: Production workloads, shared team access
 - **Lifetime**: Persists until explicitly deleted
 
-## Usage
-
-### Command Line Testing
-
-```bash
-# Test R2 connection and create local secret
-python db/test_r2_secrets.py test
-
-# Create local secret only
-python db/test_r2_secrets.py create-local
-
-# Create MotherDuck persistent secret
-python db/test_r2_secrets.py create-md
-
-# List all secrets
-python db/test_r2_secrets.py list
-
-# Clean up all secrets
-python db/test_r2_secrets.py cleanup
-```
 
 ### In dbt Python Models
 

@@ -504,6 +504,11 @@ def _storage_result(
 ) -> Dict[str, Any]:
     """Save arrow tables to DuckDB or DuckLake and optionally export to GeoParquet (GeoArrow)."""
 
+    # Handle None database_path by using environment variable
+    if database_path is None:
+        database_path = os.getenv('DUCKLAKE_CONNECTION_STRING',
+                                'ducklake:postgres:host=localhost port=5432 dbname=neondb user=neon password=npg')
+
     # Connect to DuckDB or DuckLake
     is_ducklake = database_path.startswith('ducklake:')
 
@@ -579,10 +584,10 @@ def _storage_result(
             else:
                 # Use local export (existing functionality)
                 if database_path.startswith('ducklake:'):
-                    # For DuckLake, extract the actual file path and use its parent
-                    # ducklake:sqlite:/path/to/catalog.sqlite -> /path/to/
-                    actual_path = database_path.replace('ducklake:sqlite:', '')
-                    output_dir = Path(actual_path).parent / "geoparquet"
+                    # For DuckLake (PostgreSQL or SQLite), use local data path
+                    # Both postgres and sqlite catalogs use the same local data directory
+                    repo_root = os.getenv('REPO_ROOT', '.')
+                    output_dir = Path(repo_root) / "db" / "geoparquet"
                 else:
                     # Regular DuckDB file path
                     output_dir = Path(database_path).parent / "geoparquet"

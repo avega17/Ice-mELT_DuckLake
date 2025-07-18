@@ -5,7 +5,7 @@ Modern data lakehouse pipeline for Earth Observation (EO) photovoltaic (PV) sola
 ## 🎯 Project Overview
 
 This project implements a comprehensive data pipeline for processing and analyzing global photovoltaic installation datasets, combining:
-- **Vector data**: PV installation polygons and point coordinates from multiple DOI open-access datasets
+- **Vector data**: PV installation polygon and point coordinates from multiple DOI open-access datasets
 - **Raster data**: Satellite multispectral imagery and irradiance data via public STAC catalogs
 - **Analytical processing**: Spatial indexing, administrative boundary enrichment, and energy forecasting
 
@@ -19,7 +19,7 @@ This project implements a comprehensive data pipeline for processing and analyzi
 
 **ice-mELT DuckLake** reflects our modern data architecture approach:
 
-- **Ice**: Leverages **Iceberg** and related open table formats and **Icechunk** tensor storage engine
+- **Ice**: Leverages *Iceberg-inspired* open table formats and **Icechunk** [tensor storage engine](https://earthmover.io/blog/icechunk-1-0-production-grade-cloud-native-array-storage-is-here)
 - **m<sup>3</sup>ELT**: **Modern** and **Multi-Modal** data stack with **Extract-Load-Transform** pipelines ([dbt methodology](https://www.getdbt.com/blog/extract-load-transform))
 - **DuckLake**: Data lakehouse architecture using the new **DuckLake** [open table and lakehouse format](https://ducklake.select/faq#what-is-ducklake) for SQL-based metadata management (see [the file explosion problem](https://www.starburst.io/blog/apache-iceberg-files/))
 
@@ -29,33 +29,35 @@ This project implements a comprehensive data pipeline for processing and analyzi
 - **Local filesystem** and **S3-compatible buckets** for data storage
 - **Zarr** data format with **Icechunk** tensor storage engine for rasters
 - **VirtualiZarr** for virtual datasets referencing original imagery from STAC assets
-- **Apache Parquet/GeoParquet** for lakehouse tables and vector data
-- **Apache Arrow**, an [in-memory columnar format](https://arrow.apache.org/docs/dev/format/Intro.html) that enables [zero-copy shared memory](https://arrow.apache.org/docs/dev/format/Columnar.html) and [RPC-based data movement](https://arrow.apache.org/docs/dev/format/Flight.html) between processes and networked services
-- **COG/GeoTIFF** for raster sources
+- **Apache (Geo)Parquet** for lakehouse tables and vector data where GeoParquet adds native support for spatial geometry types like points, lines, and polygons
+- **Apache (Geo)Arrow**, an [in-memory columnar format](https://arrow.apache.org/docs/dev/format/Intro.html) that enables [zero-copy shared memory](https://arrow.apache.org/docs/dev/format/Columnar.html) and [RPC-based data movement](https://arrow.apache.org/docs/dev/format/Flight.html) between processes and networked services. The [GeoArrow specification](https://geoarrow.org/format.html#motivation) simply codifies conventions for "representing spatial data in Apache Arrow formats (e.g., C Data Interface, Serialized IPC) and implementations (e.g., PyArrow, Arrow C++, arrow-rs)".
+- **COG/GeoTIFF/NetCDF** for underlying imagery and raster assets accessed via Zarr stores
 
 
 **Transform & Processing**
-- **Hamilton DAGs** for composable, self-documenting dataflows and pipelines
-- **dbt** for Python + SQL model development, lineage, testing
-- **Ibis** Python dataframe API compiling to multiple SQL backends
-- **Xarray** for labeled multi-dimensional arrays
-- **Tensorstore** for performant reading/writing of large ND-arrays
+- [Apache Hamilton DAGs](https://github.com/apache/hamilton) for composable, self-documenting dataflows and pipelines
+- [dbt core](https://github.com/dbt-labs/dbt-core?tab=readme-ov-file) and [dbt-duckdb adapter](https://duckdb.org/2025/04/04/dbt-duckdb.html) for Python **AND** SQL data model development, lineage, docs, and testing
+- [Ibis](https://ibis-project.org/why) Python dataframe API compiles and executes on any (supported) SQL query engine
+- [Xarray](https://docs.xarray.dev/en/latest/getting-started-guide/why-xarray.html) for labeled multi-dimensional arrays and API for accessing Zarr stores
+- [Google Tensorstore](https://google.github.io/tensorstore/) for performant reading/writing of large ND-arrays
 
 **Query Engines**
-- **Transactional**: PostgreSQL with pgstac, pg_mooncake, cloud via Neon/Supabase
-- **Analytical**: DuckDB (local) + MotherDuck (cloud scaling)
+- **Unified OLTP Catalog**: Unified [Neon PostgreSQL](https://neon.com/docs/get-started-with-neon/why-neon) catalog for DuckLake metadata
+- **OLAP Embedded Query Engine**: DuckDB (local development) + MotherDuck (cloud scaling) 
+- **Production**: Neon PostgreSQL with connection pooling and multi-user concurrency
+- **Development**: Neon Local container proxy with ephemeral branching from production snapshots for safe experimentation and testing changes 
 
 **Data Lakehouse & Catalogs**
-- **DuckLake** - Open lakehouse format using SQL databases for metadata management
-- **Apache Iceberg** open table format for ACID transactions (complementary to DuckLake)
-- **STAC** (SpatioTemporal Asset Catalog) for metadata and asset discovery
-- **H3 spatial indexing** for efficient spatial operations
+- **DuckLake** - Open lakehouse format with SQL catalog for all metadata management
+- **Apache Iceberg** open table format for ACID transactions (can be complementary to DuckLake and definitely has wider adoption)
+- **STAC** (SpatioTemporal Asset Catalog) for satellite imagery metadata and asset discovery
+- [H3 spatial indexing](https://h3geo.org/docs/highlights/indexing) for efficient spatial aggregations and operations while limiting data volume to hierarchical Areas-of-Interest
 
 **Data Sources**
-- DOI datasets via **datahugger**
-- STAC assets for satellite imagery
-- **Overture Maps** for admin boundaries, building footprints, land cover
-- **Google Solar API** and **NREL NSRDB** for irradiance data
+- DOI datasets via [datahugger](https://github.com/J535D165/datahugger/tree/main)
+- [STAC assets](data_loaders/stac_manifest.json) for satellite imagery
+- [Overture Maps](https://overturemaps.org/blog/2025/overture-maps-foundation-making-open-data-the-winning-choice/) for admin boundaries, building footprints, land cover
+- [Google Solar API](https://developers.google.com/maps/documentation/solar/data-layers) and [NREL NSRDB](https://nsrdb.nrel.gov/about/what-is-the-nsrdb) for irradiance data
 
 ### 🔄 **Hamilton Dataflows: The Modern Pipeline Approach**
 
@@ -133,11 +135,12 @@ GeoArrow-RS Conversion → DuckDB Storage + GeoParquet Export (native I/O)
   - Consolidated staging model with basic union and exact duplicate removal
   - Spatial deduplication using H3-based overlap detection
   - dbt Python models replacing dbt-ibis patterns for better reliability
-- **Cloud Production Deployment**
-  - MotherDuck for cloud compute and analytics
-  - Cloudflare R2 for object storage (S3-compatible)
-  - Neon PostgreSQL for DuckLake catalog metadata
-  - same dbt models work for both dev (local) and prod (cloud) environments 
+- **Unified Development & Production Architecture**
+  - **Single DuckLake catalog**: PostgreSQL-based metadata for both dev and prod
+  - **Neon Local ephemeral branches**: Safe development with automatic cleanup
+  - **Hybrid compute**: Local DuckDB (dev) + MotherDuck (prod) with intelligent query routing
+  - **Cloud storage**: Cloudflare R2 for zero-egress data access
+  - **Environment parity**: Identical dbt models work across dev/local and prod/cloud
 - **Modern data stack integration**
   - Hamilton DAGs for composable, self-documenting pipelines
   - dbt project structure with raw/staging/prepared/curated layers
@@ -148,9 +151,8 @@ GeoArrow-RS Conversion → DuckDB Storage + GeoParquet Export (native I/O)
   - [Future] Migrate dependencies to [uv, a python package manager](https://www.datacamp.com/tutorial/python-uv) [implemented in rust](https://www.saaspegasus.com/guides/uv-deep-dive/#why-use-uv) (see [pros and cons](https://www.bitecode.dev/p/a-year-of-uv-pros-cons-and-should))
 
 ### 🔄 In Progress
-- dbt Python + SQL staging models for data transformations (overture, ERA5, other prepared models, etc)
-- STAC catalog integration for satellite imagery
-- Overture Maps integration for administrative boundaries
+- dbt Python + SQL staging models for data fusion (Overture Maps themes, ERA5, Solar Irradiance, etc)
+- STAC catalog integration and ingestion for satellite imagery
 - Spatial processing utilities (H3 indexing, admin boundaries) for enhanced spatial context
 
 ## 🗺️ Roadmap
@@ -203,66 +205,79 @@ pip install -r requirements.txt
 <!-- TODO: Add data layer subdirectories in dataflows, data_loaders to reflect current proj structure -->
 ```
 ├── dataflows/                   # Hamilton dataflow modules
-│   ├── doi_pv_locations.py     # DOI PV datasets pipeline
+│   ├── doi_pv_locations.py     # DOI PV datasets ingestion
 │   ├── _doi_pv_helpers_storage.py  # Storage helper functions
-│   └── stg_doi_pv_consolidation.py  # Staging consolidation with spatial processing
-├── data_loaders/                # Data loading utilities
+│   └── stg_doi_pv_consolidation.py  # Testing staging consolidation transforms for dbt python models
+├── data_loaders/                
 │   ├── hamilton_modules/        # Reusable Hamilton components
 │   ├── utils/                   # Arrow operations, validation
 │   ├── doi_manifest.json       # Dataset metadata & file filters
-│   └── visualize_hamilton_dag.py  # DAG visualization
-├── eo-pv-elt/                   # dbt project root
+│   └── visualize_hamilton_dag.py  
+├── eo-pv-elt/                   # dbt project dir
+│   └── dbt_project.yml          # dbt configuration
 │   └── models/                  # dbt transformations
 │       ├── raw/                 # Raw data loading (Python models)
 │       ├── staging/             # Individual dataset processing with Hamilton DAGs
 │       ├── prepared/            # Consolidated data with spatial deduplication
 │       └── curated/             # Final analytical datasets
-├── db/                          # Database files
-│   ├── eo_pv_data.duckdb       # Main DuckDB database
+├── db/                          
 │   └── geoparquet/             # Exported GeoParquet files
-├── docs/                        # Documentation
+├── docs/                        
 │   ├── modern_data_stack.md    # Architecture philosophy
 │   ├── DAGs_and_Composable_Data.md  # Hamilton integration
-│   └── hamilton_best_practices.ipynb  # Interactive guide
-├── utils/                       # Shared utilities
-├── run_doi_pv_pipeline.py      # Main pipeline runner
-├── eo-pv-elt/dbt_project.yml   # dbt configuration
-└── profiles.yml      # Database connections
+│   └── hamilton_best_practices.ipynb  # WIP guide with DAG visualizations
+├── utils/                       # Shared utilities mostly initial work left to be refactored
+└── profiles.yml      # Database connections and configurations for dbt
 ```
 
 ## 🔧 Configuration
 
-### Free Tier Strategy
+### Unified Architecture Strategy
 
-Our architecture is designed to maximize free tier usage for research workloads:
+Our architecture provides seamless development-to-production workflows with cost-effective scaling:
 
-**Current Setup (Local Development)**
-- **DuckDB**: Local analytical processing (free)
-- **Local filesystem**: Development data storage (free)
+**Development Environment (Neon Local + Local DuckDB)**
+- **Neon Local**: Ephemeral or Persisting DB branches from production schema and data (free)
+- **DuckDB**: Local analytical processing with full spatial extensions (free)
+- **Local storage**: Development data materialization for fast iteration (free)
+- **Docker**: Containerized Neon Local proxy with automatic branch cleanup (free)
 
-**Planned Cloud Integration (Research Scale)**
-- **Cloudflare R2**: 10GB free storage + free egress
-- **MotherDuck**: 10GB free analytical processing
-- **Neon PostgreSQL**: 0.5GB free for DuckLake metadata
-- **Supabase**: Alternative free PostgreSQL for pgstac
+**Production Environment (Neon Cloud + MotherDuck + R2)**
+- **Neon PostgreSQL**: Serverless catalog with connection pooling (0.5GB free tier)
+- **MotherDuck**: Hybrid query processing with intelligent local/cloud routing (10GB free tier)
+- **Cloudflare R2**: Zero-egress object storage for data lakehouse (10GB free tier)
+- **Same dbt models**: Identical transformations beyond environment configuration
 
-**Cost Projection**: Research workloads should operate entirely within free tiers (~$0/month) or minimal costs (~$5-10/month) for larger datasets.
+**Key Benefits**:
+- **Environment parity**: Same catalog structure, same models, same data
+- **Safe experimentation**: Ephemeral branches prevent production impact
+- **Cost optimization**: Free tiers for research, pay-as-you-scale for production
+- **Hybrid processing**: Intelligent query routing between local and cloud compute for some production workloads
+
+**Cost Projection**: Some academic research workloads operate entirely within free tiers (~$0/month), production scales cost-effectively (~$10's/month for certain TB-scale datasets).
 
 ### Environment Variables
 ```bash
-# Required for production cloud deployment
+# Unified DuckLake catalog (both dev and prod)
+export DUCKLAKE_CONNECTION_STRING="ducklake:postgres:host=localhost port=5432 dbname=neondb user=neon password=npg"  # Dev (Neon Local)
+export DUCKLAKE_CONNECTION_STRING_PROD="ducklake:postgres:host=ep-broad-rain-a4tdwnxn-pooler.us-east-1.aws.neon.tech..."  # Prod
+
+# Neon Local ephemeral branches (development)
+export NEON_API_KEY="napi_..."
+export NEON_PROJECT_ID="your_project_id"
+
+# Cloud storage and compute (production)
 export MOTHERDUCK_TOKEN="your_token"
 export R2_ACCESS_KEY_ID="your_key"
 export R2_SECRET_ACCESS_KEY="your_secret"
-export DUCKLAKE_NAME="eo_pv_lakehouse"
-export NEON_PG_CONN="postgresql://user:pass@host/db"
+export R2_BUCKET_NAME="your-eo-bucket"
 
-# Development configuration
-export REPO_ROOT="/path/to/ice-mELT_ducklake"
+# Environment targeting
 export DBT_TARGET="dev"  # or "prod"
+export REPO_ROOT="/path/to/ice-mELT_ducklake"
 
-# Optional: Spatial processing configuration
-export H3_DEDUP_RES="12"
+# Spatial processing configuration
+export H3_DEDUP_RES="12" # default used for detecting spatially overlapping, duplicate geometries
 export OVERLAP_THRESHOLD="0.5"
 ```
 
@@ -274,12 +289,12 @@ export OVERLAP_THRESHOLD="0.5"
 ## 📈 Data Products
 
 ### Current Datasets
-- **Global PV installations**: 443,917+ installations from 6 validated DOI sources
+- **Global PV installations**: 100's of thousands of PV installations from validated, published DOI sources
   - Mixed geometry types: Points, Polygons, MultiPolygons
   - Standardized to EPSG:4326 (WGS84) coordinate system
   - H3 spatial indexing at configurable resolution depending on image sensor GSD and use case (default: 12)
   - Spatial deduplication using H3-based overlap detection or GeoPandas spatial index and predicates
-  - Available in both DuckDB tables (spatial queries) and (Geo)Parquet files (interoperability)
+  - Will be available in both DuckDB tables (spatial queries) and (Geo)Parquet files (interoperability)
 - **Administrative boundaries**: Country/region context via Overture Maps (in development)
 - **Geometry statistics**: Area calculations and centroid coordinates for all installations
 

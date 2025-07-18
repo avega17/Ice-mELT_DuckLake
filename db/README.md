@@ -1,6 +1,36 @@
-# DuckLake Maintenance Utilities
+# DuckLake Database Infrastructure
 
-A comprehensive CLI tool for maintaining DuckLake catalogs with snapshot management, file cleanup, and storage optimization. Supports both local SQLite catalogs (development) and cloud PostgreSQL catalogs (production).
+A unified database architecture for Ice-mELT DuckLake supporting seamless development-to-production workflows with ephemeral branching, hybrid compute, and intelligent query routing.
+
+## Architecture Overview
+
+### Unified PostgreSQL Catalog Strategy
+
+**Single Source of Truth**: Both development and production environments use the same PostgreSQL-based DuckLake catalog structure, ensuring environment parity and eliminating configuration drift.
+
+**Development Environment (Neon Local)**:
+- **Ephemeral PostgreSQL branches** created from production data
+- **Automatic cleanup** when development session ends
+- **Safe experimentation** without affecting production catalog
+- **Local DuckDB compute** for fast iteration and zero cloud costs
+
+**Production Environment (Neon Cloud)**:
+- **Serverless PostgreSQL** with connection pooling and multi-user access
+- **MotherDuck hybrid compute** with intelligent local/cloud query routing
+- **Cloudflare R2 storage** for zero-egress data access
+- **Same dbt models** work identically across environments
+
+### Key Benefits
+
+✅ **Environment Parity**: Identical catalog structure, same models, same data
+✅ **Safe Development**: Ephemeral branches prevent production impact
+✅ **Cost Optimization**: Free tiers for research, pay-as-you-scale for production
+✅ **Hybrid Processing**: Intelligent query routing between local and cloud compute
+✅ **Zero Configuration Drift**: Single catalog schema across all environments
+
+## DuckLake Maintenance Utilities
+
+Comprehensive CLI tools for maintaining DuckLake catalogs with snapshot management, file cleanup, and storage optimization across both development and production environments.
 
 ## Features
 
@@ -129,10 +159,23 @@ python ducklake_maintenance.py full-maintenance --days 7 --dry-run
 
 ### Environment Variables
 
-- `DUCKLAKE_CATALOG_PATH`: Default catalog path (SQLite for dev, PostgreSQL for prod)
-- `DUCKLAKE_DATA_PATH`: Default data directory path (local for dev, R2 bucket for prod)
-- `NEON_PG_CONN`: PostgreSQL connection string for production catalog
-- `DUCKLAKE_NAME`: Bucket name for cloud storage (production)
+**Unified DuckLake Catalog Configuration**:
+- `DUCKLAKE_CONNECTION_STRING`: PostgreSQL connection for DuckLake catalog (dev: Neon Local, prod: Neon Cloud)
+- `DUCKLAKE_DATA_PATH`: Data storage path (dev: local files, prod: R2 bucket)
+
+**Neon Local Ephemeral Branches (Development)**:
+- `NEON_API_KEY`: Neon API key for creating ephemeral branches
+- `NEON_PROJECT_ID`: Neon project ID for branch management
+- `NEON_PARENT_BRANCH`: Parent branch ID for ephemeral branches (default: production)
+
+**Cloud Storage and Compute (Production)**:
+- `MOTHERDUCK_TOKEN`: MotherDuck token for hybrid query processing
+- `R2_ACCESS_KEY_ID`: Cloudflare R2 access key
+- `R2_SECRET_ACCESS_KEY`: Cloudflare R2 secret key
+- `R2_BUCKET_NAME`: R2 bucket name for data storage
+
+**Environment Targeting**:
+- `DBT_TARGET`: Environment target (dev/prod) for dbt model execution
 
 ### Configuration File
 
@@ -249,12 +292,25 @@ Feel free to submit issues and enhancement requests!
 
 ## Integration with Ice-mELT Pipeline
 
-This maintenance utility is designed to work with the Ice-mELT DuckLake ELT pipeline:
+This unified database infrastructure supports the complete Ice-mELT DuckLake ELT pipeline:
 
-- **Development**: Maintains local SQLite catalog with local data storage
-- **Production**: Maintains Neon PostgreSQL catalog with Cloudflare R2 storage
-- **dbt Integration**: Coordinates with dbt models for table lifecycle management
-- **Hamilton DAGs**: Supports maintenance of tables created by Hamilton dataflows
+### Development Workflow
+- **Neon Local**: Ephemeral PostgreSQL branches from production data
+- **Local DuckDB**: Fast analytical processing with full spatial extensions
+- **Docker**: Containerized Neon Local proxy with automatic branch cleanup
+- **Environment Scripts**: Simple `source db/env_scripts/dev.fish` activation
+
+### Production Workflow
+- **Neon PostgreSQL**: Serverless catalog with connection pooling
+- **MotherDuck**: Hybrid query processing with intelligent routing
+- **Cloudflare R2**: Zero-egress object storage for data lakehouse
+- **Same dbt Models**: Identical transformations across environments
+
+### Pipeline Integration
+- **dbt Models**: Unified SQL models work across dev and prod environments
+- **Hamilton DAGs**: Standardized data processing with environment-aware configuration
+- **Maintenance Tools**: Automated snapshot management and storage optimization
+- **Spatial Processing**: H3 indexing and geometry operations with consistent schemas
 
 ## License
 
