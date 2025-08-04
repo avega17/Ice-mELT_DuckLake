@@ -33,11 +33,85 @@ models:
     raw:
       +materialized: view
       +database: eo_pv_lakehouse
+      # R2 S3 configuration for raw models
+      +pre_hook:
+        - "{% if target.name in ['dev', 'prod'] %}SET s3_access_key_id='{{ env_var('R2_ACCESS_KEY_ID') }}';{% endif %}"
+        - "{% if target.name in ['dev', 'prod'] %}SET s3_secret_access_key='{{ env_var('R2_SECRET_KEY') }}';{% endif %}"
+        - "{% if target.name in ['dev', 'prod'] %}SET s3_endpoint='{{ env_var('CLOUDFLARE_ACCOUNT_ID') }}.r2.cloudflarestorage.com';{% endif %}"
+        - "{% if target.name in ['dev', 'prod'] %}SET s3_use_ssl=true;{% endif %}"
+        - "{% if target.name in ['dev', 'prod'] %}SET s3_url_style='path';{% endif %}"
 
     # Staging models - raw data with geopandas preprocessing (Python models)
     staging:
       +materialized: table
       +database: eo_pv_lakehouse
+
+      # PV staging models - need R2 S3 configuration
+      stg_pv_consolidated:
+        +pre_hook:
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_access_key_id='{{ env_var('R2_ACCESS_KEY_ID') }}';{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_secret_access_key='{{ env_var('R2_SECRET_KEY') }}';{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_endpoint='{{ env_var('CLOUDFLARE_ACCOUNT_ID') }}.r2.cloudflarestorage.com';{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_use_ssl=true;{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_url_style='path';{% endif %}"
+
+      stg_chn_med_res_pv_2024:
+        +pre_hook:
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_access_key_id='{{ env_var('R2_ACCESS_KEY_ID') }}';{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_secret_access_key='{{ env_var('R2_SECRET_KEY') }}';{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_endpoint='{{ env_var('CLOUDFLARE_ACCOUNT_ID') }}.r2.cloudflarestorage.com';{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_use_ssl=true;{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_url_style='path';{% endif %}"
+
+      stg_global_harmonized_large_solar_farms_2020:
+        +pre_hook:
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_access_key_id='{{ env_var('R2_ACCESS_KEY_ID') }}';{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_secret_access_key='{{ env_var('R2_SECRET_KEY') }}';{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_endpoint='{{ env_var('CLOUDFLARE_ACCOUNT_ID') }}.r2.cloudflarestorage.com';{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_use_ssl=true;{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_url_style='path';{% endif %}"
+
+      stg_global_pv_inventory_sent2_spot_2021:
+        +pre_hook:
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_access_key_id='{{ env_var('R2_ACCESS_KEY_ID') }}';{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_secret_access_key='{{ env_var('R2_SECRET_KEY') }}';{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_endpoint='{{ env_var('CLOUDFLARE_ACCOUNT_ID') }}.r2.cloudflarestorage.com';{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_use_ssl=true;{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_url_style='path';{% endif %}"
+
+      stg_ind_pv_solar_farms_2022:
+        +pre_hook:
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_access_key_id='{{ env_var('R2_ACCESS_KEY_ID') }}';{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_secret_access_key='{{ env_var('R2_SECRET_KEY') }}';{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_endpoint='{{ env_var('CLOUDFLARE_ACCOUNT_ID') }}.r2.cloudflarestorage.com';{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_use_ssl=true;{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_url_style='path';{% endif %}"
+
+      stg_uk_crowdsourced_pv_2020:
+        +pre_hook:
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_access_key_id='{{ env_var('R2_ACCESS_KEY_ID') }}';{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_secret_access_key='{{ env_var('R2_SECRET_KEY') }}';{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_endpoint='{{ env_var('CLOUDFLARE_ACCOUNT_ID') }}.r2.cloudflarestorage.com';{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_use_ssl=true;{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_url_style='path';{% endif %}"
+
+      stg_usa_cali_usgs_pv_2016:
+        +pre_hook:
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_access_key_id='{{ env_var('R2_ACCESS_KEY_ID') }}';{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_secret_access_key='{{ env_var('R2_SECRET_KEY') }}';{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_endpoint='{{ env_var('CLOUDFLARE_ACCOUNT_ID') }}.r2.cloudflarestorage.com';{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_use_ssl=true;{% endif %}"
+          - "{% if target.name in ['dev', 'prod'] %}SET s3_url_style='path';{% endif %}"
+
+      # Overture Maps models - use clean default S3 config for public bucket access (no R2 config)
+      stg_overture_admin_boundaries:
+        +pre_hook: 
+          - "SET s3_region='us-west-2';"
+          - "SET s3_use_ssl=true;"
+          - "SET s3_url_style='path';"
+          - "SET s3_access_key_id='';"  # Blank access key for public bucket
+          - "SET s3_secret_access_key='';"  # Blank secret key for public bucket
+          - "SET s3_endpoint='overturemaps-us-west-2.s3.us-west-2.amazonaws.com';"
 
     # Prepared models - business logic transformations and data preparation
     prepared:
@@ -88,10 +162,14 @@ vars:
   # H3 spatial indexing settings
   h3_resolution: 12  # ~15,047.5 m² hexagons for PV installations
   h3_country_resolution: 4  # ~1,770 km² hexagons for country decomposition
+  h3_overture_res: 6  # ~36.1 km² hexagons for Overture Maps filtering
 
   # Spatial processing settings
   overlap_threshold: 0.5  # For duplicate detection
   buffer_distance_m: 150   # Buffer for spatial joins
+
+  # Overture Maps configuration
+  overture_release: '2025-07-23.0'  # Latest Overture Maps release
 
   # DuckDB-specific settings
   use_native_geometry: true  # Use DuckDB spatial extension instead of WKT
@@ -118,12 +196,9 @@ on-run-start:
   - "INSTALL h3 FROM community"
   - "LOAD h3"
   - "USE eo_pv_lakehouse;"
-  # Configure S3 settings for R2 access (both dev and prod use R2)
-  - "{% if target.name in ['dev', 'prod'] %}SET s3_access_key_id='{{ env_var('R2_ACCESS_KEY_ID') }}';{% endif %}"
-  - "{% if target.name in ['dev', 'prod'] %}SET s3_secret_access_key='{{ env_var('R2_SECRET_KEY') }}';{% endif %}"
-  - "{% if target.name in ['dev', 'prod'] %}SET s3_endpoint='{{ env_var('CLOUDFLARE_ACCOUNT_ID') }}.r2.cloudflarestorage.com';{% endif %}"
-  - "{% if target.name in ['dev', 'prod'] %}SET s3_use_ssl=true;{% endif %}"
-  - "{% if target.name in ['dev', 'prod'] %}SET s3_url_style='path';{% endif %}"
+  # Note: S3 settings moved to model-specific configurations
+  # - R2 models use R2-specific S3 configuration
+  # - Overture models use default S3 configuration for public buckets
   # Note: geography extension temporarily commented out due to availability issues
   # - "INSTALL geography FROM community"
   # - "LOAD geography"

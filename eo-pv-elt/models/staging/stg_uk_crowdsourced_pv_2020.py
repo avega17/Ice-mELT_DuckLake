@@ -45,7 +45,7 @@ def model(dbt, session):
 
     # Configure model
     dbt.config(
-        # materialized='table',
+        materialized='table',
         indexes=[
             {'columns': ['dataset_name'], 'type': 'btree'},
             {'columns': ['h3_index_12'], 'type': 'btree'},

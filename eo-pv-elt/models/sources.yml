@@ -7,32 +7,32 @@ sources:
     config:
       # DEV: /local/path/to/geoparquet/files
       # PROD: s3://bucket/geoparquet/files
-      external_location: "{% if target.name == 'prod' %}{{ env_var('GEOPARQUET_SOURCE_PATH_PROD') }}{% else %}{{ env_var('GEOPARQUET_SOURCE_PATH_DEV') }}{% endif %}"
+      external_location: "{% if target.name == 'prod' %}{{ env_var('GEOPARQUET_SOURCE_PATH') }}{% else %}{{ env_var('GEOPARQUET_SOURCE_PATH') }}{% endif %}"
     tables:
       - name: doi_uk_crowdsourced_pv_2020
         description: "UK Crowdsourced PV 2020 GeoParquet export"
         config:
-          external_location: "{% if target.name == 'prod' %}{{ env_var('GEOPARQUET_SOURCE_PATH_PROD') }}{% else %}{{ env_var('GEOPARQUET_SOURCE_PATH_DEV') }}{% endif %}/doi_uk_crowdsourced_pv_2020.parquet"
+          external_location: "{% if target.name == 'prod' %}{{ env_var('GEOPARQUET_SOURCE_PATH') }}{% else %}{{ env_var('GEOPARQUET_SOURCE_PATH') }}{% endif %}/doi_uk_crowdsourced_pv_2020.parquet"
       - name: doi_chn_med_res_pv_2024
         description: "China Medium Resolution PV 2024 GeoParquet export"
         config:
-          external_location: "{% if target.name == 'prod' %}{{ env_var('GEOPARQUET_SOURCE_PATH_PROD') }}{% else %}{{ env_var('GEOPARQUET_SOURCE_PATH_DEV') }}{% endif %}/doi_chn_med_res_pv_2024.parquet"
+          external_location: "{% if target.name == 'prod' %}{{ env_var('GEOPARQUET_SOURCE_PATH') }}{% else %}{{ env_var('GEOPARQUET_SOURCE_PATH') }}{% endif %}/doi_chn_med_res_pv_2024.parquet"
       - name: doi_usa_cali_usgs_pv_2016
         description: "USA California USGS PV 2016 GeoParquet export"
         config:
-          external_location: "{% if target.name == 'prod' %}{{ env_var('GEOPARQUET_SOURCE_PATH_PROD') }}{% else %}{{ env_var('GEOPARQUET_SOURCE_PATH_DEV') }}{% endif %}/doi_usa_cali_usgs_pv_2016.parquet"
+          external_location: "{% if target.name == 'prod' %}{{ env_var('GEOPARQUET_SOURCE_PATH') }}{% else %}{{ env_var('GEOPARQUET_SOURCE_PATH') }}{% endif %}/doi_usa_cali_usgs_pv_2016.parquet"
       - name: doi_ind_pv_solar_farms_2022
         description: "India PV Solar Farms 2022 GeoParquet export"
         config:
-          external_location: "{% if target.name == 'prod' %}{{ env_var('GEOPARQUET_SOURCE_PATH_PROD') }}{% else %}{{ env_var('GEOPARQUET_SOURCE_PATH_DEV') }}{% endif %}/doi_ind_pv_solar_farms_2022.parquet"
+          external_location: "{% if target.name == 'prod' %}{{ env_var('GEOPARQUET_SOURCE_PATH') }}{% else %}{{ env_var('GEOPARQUET_SOURCE_PATH') }}{% endif %}/doi_ind_pv_solar_farms_2022.parquet"
       - name: doi_global_pv_inventory_sent2_spot_2021
         description: "Global PV Inventory Sentinel-2 SPOT 2021 GeoParquet export"
         config:
-          external_location: "{% if target.name == 'prod' %}{{ env_var('GEOPARQUET_SOURCE_PATH_PROD') }}{% else %}{{ env_var('GEOPARQUET_SOURCE_PATH_DEV') }}{% endif %}/doi_global_pv_inventory_sent2_spot_2021.parquet"
+          external_location: "{% if target.name == 'prod' %}{{ env_var('GEOPARQUET_SOURCE_PATH') }}{% else %}{{ env_var('GEOPARQUET_SOURCE_PATH') }}{% endif %}/doi_global_pv_inventory_sent2_spot_2021.parquet"
       - name: doi_global_harmonized_large_solar_farms_2020
         description: "Global Harmonized Large Solar Farms 2020 GeoParquet export"
         config:
-          external_location: "{% if target.name == 'prod' %}{{ env_var('GEOPARQUET_SOURCE_PATH_PROD') }}{% else %}{{ env_var('GEOPARQUET_SOURCE_PATH_DEV') }}{% endif %}/doi_global_harmonized_large_solar_farms_2020.parquet"
+          external_location: "{% if target.name == 'prod' %}{{ env_var('GEOPARQUET_SOURCE_PATH') }}{% else %}{{ env_var('GEOPARQUET_SOURCE_PATH') }}{% endif %}/doi_global_harmonized_large_solar_farms_2020.parquet"
 
   # DOI PV Raw Data - Database tables (for staging consolidation reference)
   - name: doi_pv_raw

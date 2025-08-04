@@ -445,5 +445,83 @@ models:
       - name: install_date
         data_type: varchar
 
+  # Overture Maps Staging Models
+  - name: stg_overture_admin_boundaries
+    description: "Administrative boundaries from Overture Maps spatially filtered to PV installation areas using DuckDB SPATIAL_JOIN operator"
+    columns:
+      - name: division_id
+        description: "Unique identifier for the administrative division"
+        data_type: varchar
+        tests:
+          - unique
+          - not_null
+      - name: country_iso
+        description: "ISO country code"
+        data_type: varchar
+        tests:
+          - not_null
+      - name: region_code
+        description: "Region code within country"
+        data_type: varchar
+      - name: division_name
+        description: "Primary name of the administrative division"
+        data_type: varchar
+        tests:
+          - not_null
+      - name: division_common_names
+        description: "Common alternative names for the division"
+        data_type: varchar
+      - name: admin_level
+        description: "Administrative level (dependency, country, region, county, locality)"
+        data_type: varchar
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['dependency', 'country', 'region', 'county', 'locality']
+      - name: admin_class
+        description: "Administrative class/type"
+        data_type: varchar
+      - name: geometry
+        description: "Administrative boundary geometry (WKB format)"
+        data_type: blob
+        tests:
+          - not_null
+      - name: bbox
+        description: "Bounding box of the administrative boundary"
+        data_type: struct
+      - name: admin_h3_cell
+        description: "H3 cell ID at resolution 6 for the admin boundary centroid"
+        data_type: ubigint
+      - name: intersecting_pv_h3_cells
+        description: "Array of H3 cell IDs that contain PV installations and intersect this boundary"
+        data_type: ubigint[]
+      - name: pv_h3_cell_count
+        description: "Number of PV H3 cells that intersect this administrative boundary"
+        data_type: bigint
+      - name: sources
+        description: "Data sources for this administrative boundary"
+        data_type: varchar[]
+      - name: version
+        description: "Version information from Overture Maps"
+        data_type: bigint
+      - name: area_m2
+        description: "Area of the administrative boundary in square meters"
+        data_type: double
+      - name: centroid_lon
+        description: "Longitude of the administrative boundary centroid"
+        data_type: double
+      - name: centroid_lat
+        description: "Latitude of the administrative boundary centroid"
+        data_type: double
+      - name: processed_at
+        description: "Timestamp when this record was processed"
+        data_type: timestamp
+      - name: overture_release
+        description: "Overture Maps release version used"
+        data_type: varchar
+      - name: h3_resolution_used
+        description: "H3 resolution used for spatial filtering"
+        data_type: int
+
   # Note: Prepared layer models are disabled (enabled=false) until dependencies are implemented
   # Schema definitions removed to avoid compilation errors - will be re-added when models are enabled

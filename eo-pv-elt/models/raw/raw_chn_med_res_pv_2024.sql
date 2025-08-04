@@ -3,16 +3,15 @@
 
 -- Set dataset name for this model
 {% set dataset_name = 'chn_med_res_pv_2024' %}
+{% set geometry_parse = 'ST_GeomFromWKB(geometry)' %}
 
 -- Determine file path based on target
 {% if target.name == 'prod' %}
     {% set source_path = env_var('GEOPARQUET_SOURCE_PATH', 's3://eo-pv-lakehouse/geoparquet') %}
     {% set file_path = source_path ~ '/raw_' ~ dataset_name ~ '.parquet' %}
-    {% set geometry_parse = 'ST_GeomFromWKB(geometry)' %}
 {% else %}
     {% set source_path = env_var('GEOPARQUET_SOURCE_PATH', 'db/geoparquet') %}
     {% set file_path = source_path ~ '/raw_' ~ dataset_name ~ '.parquet' %}
-    {% set geometry_parse = 'geometry' %}
 {% endif %}
 
 -- Load DOI manifest JSON and extract metadata for this dataset

@@ -12,7 +12,7 @@
 {% else %}
     {% set source_path = env_var('GEOPARQUET_SOURCE_PATH', 'db/geoparquet') %}
     {% set file_path = source_path ~ '/raw_' ~ dataset_name ~ '.parquet' %}
-    {% set geometry_parse = 'geometry' %}
+    {% set geometry_parse = 'ST_GeomFromWKB(geometry)' %}
 {% endif %}
 
 -- Load DOI manifest JSON and extract metadata for this dataset

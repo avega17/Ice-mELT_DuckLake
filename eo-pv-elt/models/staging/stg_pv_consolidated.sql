@@ -1,3 +1,10 @@
+{{
+    config(
+        materialized='view',
+        description='Consolidated staging table with unified schema and H3 spatial indexes of processed PV installation geometries from all DOI datasets'
+    )
+}}
+
 SELECT * FROM {{ ref('stg_global_pv_inventory_sent2_spot_2021') }}
 UNION ALL BY NAME
 SELECT * FROM {{ ref('stg_usa_cali_usgs_pv_2016') }}

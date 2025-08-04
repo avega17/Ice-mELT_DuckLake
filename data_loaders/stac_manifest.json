@@ -166,18 +166,35 @@
     "documentation_url": "https://docs.overturemaps.org/",
     "data_type": "vector",
     "data_format": "GeoParquet",
-    "latest_release": "2025-06-25.0",
+    "latest_release": "2025-07-23.0",
     "total_features": "4.2B",
     "include_themes": [
       "buildings",
       "divisions",
       "base"
     ],
+    "dbt_models": {
+      "staging_models": [
+        "stg_overture_admin_boundaries",
+        "stg_overture_land_cover",
+        "stg_overture_land_use",
+        "stg_overture_buildings"
+      ],
+      "materialization": "incremental",
+      "spatial_optimization": "duckdb_spatial_join_h3_filtering"
+    },
+    "spatial_filtering": {
+      "h3_resolution": 6,
+      "description": "H3 resolution 6 (~36km² cells) for coarse global filtering",
+      "strategy": "h3_grid_from_pv_locations",
+      "performance_target": "100x_improvement_via_spatial_join_operator"
+    },
     "theme_details": {
       "buildings": {
         "description": "Over 2.6B buildings globally - all building types for PV rooftop analysis",
         "feature_types": ["building", "building_part"],
         "include_all": true,
+        "dbt_model": "stg_overture_buildings",
         "documentation": "https://docs.overturemaps.org/guides/buildings/"
       },
       "divisions": {
@@ -185,14 +202,18 @@
         "feature_types": ["division_area"],
         "admin_levels": ["dependency", "country", "region", "county", "locality"],
         "include_all": false,
-        "filter_criteria": "admin_level IN ('dependency', 'country', 'region', 'county', 'locality')",
+        "filter_criteria": "subtype IN ('dependency', 'country', 'region', 'county', 'locality')",
+        "dbt_model": "stg_overture_admin_boundaries",
         "documentation": "https://docs.overturemaps.org/guides/divisions/"
       },
       "base": {
         "description": "Land use and land cover for PV installation context analysis",
         "feature_types": ["land_use", "land_cover"],
+        "land_cover_subtypes": ["urban", "crop", "forest", "grass", "barren"],
+        "land_use_subtypes": ["residential", "commercial", "industrial", "recreation"],
         "include_all": false,
         "excluded_types": ["bathymetry", "infrastructure", "land", "water"],
+        "dbt_models": ["stg_overture_land_cover", "stg_overture_land_use"],
         "documentation": "https://docs.overturemaps.org/guides/base/"
       }
     },
@@ -201,19 +222,19 @@
       "aws_s3": "s3://overturemaps-us-west-2/release/",
       "azure_blob": "https://overturemapswestus2.blob.core.windows.net/release/"
     },
-    "search_parameters": {
-      "buffer_meters": 5000,
-      "max_items_per_location": 1000,
-      "spatial_relationship": "intersects"
+    "duckdb_optimization": {
+      "spatial_join_operator": "duckdb_1.3.0_spatial_join",
+      "external_file_cache": "enabled",
+      "required_extensions": ["spatial", "h3", "httpfs"],
+      "single_spatial_predicate": "ST_Intersects"
     },
     "use_cases": [
       "Building footprint analysis for rooftop PV potential",
       "Administrative boundary enrichment (country to locality level)",
       "Land use/cover context for PV siting analysis",
-      "Spatial joins with PV installations"
+      "Spatial joins with PV installations using H3 grid filtering"
     ],
-    "priority": 2,
     "skip": false,
-    "notes": "Vector data catalog - monthly releases as GeoParquet, not imagery"
+    "notes": "dbt staging models with DuckDB SPATIAL_JOIN operator optimization - 100x performance improvement over naive spatial joins"
   }
 }
