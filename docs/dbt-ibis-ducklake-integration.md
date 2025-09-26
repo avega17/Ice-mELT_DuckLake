@@ -35,7 +35,7 @@ Raw Data (GeoParquet) → Hamilton DAGs → DuckLake SQLite Catalog → dbt-ibis
 def model(dbt, session):
     # Hamilton DAG integration
     from hamilton import driver
-    import dataflows.stg.consolidation.stg_doi_pv_consolidation as consolidation
+    import dataflows.stg.pv_consolidation.stg_doi_pv_consolidation as consolidation
     
     # Configuration
     config = {"execution_mode": "sequential", "use_ducklake": True}

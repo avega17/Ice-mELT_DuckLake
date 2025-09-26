@@ -2,6 +2,8 @@
 
 ## Overview
 
+<!-- TODO: include link for clarity -->
+
 This document outlines the migration from `geoarrow-python` (C bindings) to `geoarrow-rs` (Rust implementation) for better performance, more comprehensive API, and native I/O support in the ice-mELT DuckLake project.
 
 ## Why GeoArrow-RS?
@@ -91,7 +93,7 @@ The new implementation includes graceful fallbacks:
 
 ### Requirements Files
 - `requirements.txt`: Replaced `geoarrow-pyarrow` and `geoarrow-pandas` with `geoarrow-rs`
-- `data_loaders/requirements_hamilton.txt`: Updated geospatial dependencies
+- `ingest/requirements_hamilton.txt`: Updated geospatial dependencies
 
 ### Documentation
 - `README.md`: Updated pipeline descriptions to reflect geoarrow-rs usage

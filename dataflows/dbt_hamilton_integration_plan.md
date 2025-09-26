@@ -36,7 +36,7 @@ This document outlines the architecture for integrating our refactored Hamilton 
 # models/staging/stg_pv_datasets.py
 import pandas as pd
 from hamilton import driver
-from data_loaders.hamilton_modules import data_sources, transformations
+from ingest.hamilton_modules import data_sources, transformations
 
 def model(dbt, session):
     """
@@ -69,7 +69,7 @@ def model(dbt, session):
     raw_pv_data = dbt.ref("stg_pv_datasets")
     
     # Hamilton driver for feature engineering
-    from hamilton_modules import spatial_features
+    from dataflows.hamilton_modules import spatial_features
     dr = driver.Builder().with_modules(spatial_features).build()
     
     # Execute feature engineering
@@ -94,7 +94,7 @@ def model(dbt, session):
     prepared_data = dbt.ref("prep_spatial_features")
     
     # Hamilton driver for quality checks
-    from hamilton_modules import validations, quality_metrics
+    from dataflows.hamilton_modules import validations, quality_metrics
     dr = driver.Builder().with_modules(
         validations, quality_metrics
     ).build()
@@ -132,54 +132,10 @@ def model(dbt, session):
 - [ ] Optimize Hamilton-dbt performance
 - [ ] Implement caching strategies
 - [ ] Add monitoring and observability
-- [ ] Create deployment automation
-
-## Technical Architecture
-
-### Directory Structure
-```
-├── models/
-│   ├── staging/
-│   │   ├── stg_pv_datasets.py          # Hamilton data loading
-│   │   └── stg_spatial_context.py      # Spatial context loading
-│   ├── prepared/
-│   │   ├── prep_spatial_features.py    # Hamilton feature engineering
-│   │   └── prep_quality_metrics.py     # Hamilton quality assessment
-│   └── curated/
-│       ├── curated_pv_database.sql     # Final SQL aggregations
-│       └── curated_spatial_indices.py  # Hamilton spatial processing
-├── hamilton_modules/                    # Reusable Hamilton components
-│   ├── dbt_adapters/                   # dbt-specific Hamilton modules
-│   │   ├── data_loaders.py
-│   │   ├── feature_engineering.py
-│   │   ├── spatial_operations.py
-│   │   └── quality_assessment.py
-│   └── shared/                         # Shared utility modules
-└── macros/
-    └── hamilton_utils.sql              # dbt macros for Hamilton integration
-```
 
 ### Configuration Management
 
-**dbt_project.yml additions:**
-```yaml
-models:
-  ice_melt_ducklake:
-    staging:
-      +materialized: table
-      +python_env: hamilton_env
-    prepared:
-      +materialized: table
-      +python_env: hamilton_env
-    curated:
-      +materialized: view
 
-vars:
-  hamilton_config:
-    use_cache: true
-    max_mb: 300
-    database_path: "{{ target.path }}/eo_pv_data.duckdb"
-```
 
 ### Hamilton Module Design for dbt
 

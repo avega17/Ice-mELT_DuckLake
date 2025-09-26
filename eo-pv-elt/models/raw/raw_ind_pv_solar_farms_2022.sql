@@ -21,7 +21,7 @@ WITH doi_manifest_raw AS (
     {% if target.name == 'prod' %}
         SELECT * FROM read_json_objects_auto('{{ env_var("DOI_MANIFEST_PROD", "s3://eo-pv-lakehouse/pv_metadata/doi_manifest.json") }}')
     {% else %}
-        SELECT * FROM read_json_objects_auto('{{ env_var("REPO_ROOT", ".") }}/data_loaders/doi_manifest.json')
+        SELECT * FROM read_json_objects_auto('{{ env_var("REPO_ROOT", ".") }}/ingest/doi_manifest.json')
     {% endif %}
 ),
 doi_manifest_expanded AS (

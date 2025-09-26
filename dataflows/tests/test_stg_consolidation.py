@@ -31,7 +31,7 @@ from hamilton import driver
 from hamilton.execution import executors
 
 # Import staging dataflow modules
-from dataflows.stg.consolidation import stg_doi_pv_consolidation
+from dataflows.stg.pv_consolidation import stg_doi_pv_consolidation
 
 # Load environment variables from .env file
 load_dotenv()
@@ -218,7 +218,7 @@ def run_staging_pipeline(config: dict, enable_caching: bool = True, use_parallel
 
                 # Verify the table exists in the database (use DuckLake connection)
                 try:
-                    from dataflows.stg.consolidation.stg_doi_pv_consolidation import _create_ducklake_connection
+                    from dataflows.stg.pv_consolidation.stg_doi_pv_consolidation import _create_ducklake_connection
 
                     # Use the same DuckLake connection as the staging DAG
                     con = _create_ducklake_connection(

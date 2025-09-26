@@ -35,10 +35,8 @@ from hamilton.htypes import Parallelizable, Collect
 # Import storage helpers
 from ...doi_pv._doi_pv_helpers_storage import _geoarrow_table, _duckdb_table_from_geoarrow
 
-
-@tag(stage="overture_integration", data_type="metadata")
 @cache(behavior="disable")
-def stac_manifest_overture(stac_manifest_path: str = "data_loaders/stac_manifest.json") -> Dict[str, Any]:
+def stac_manifest_overture(stac_manifest_path: str = "ingest/stac_manifest.json") -> Dict[str, Any]:
     """
     Load Overture Maps configuration from STAC manifest.
     

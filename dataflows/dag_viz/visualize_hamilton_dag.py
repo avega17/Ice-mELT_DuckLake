@@ -20,15 +20,12 @@ from typing import Dict, Any, List, Optional
 import importlib.util
 from dotenv import load_dotenv
 
-# Add parent directory to path to import dataflows
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-# Load environment variables
+# Ensure repo root is on sys.path so `import dataflows...` works
+# Prefer REPO_ROOT from .env; fall back to two levels up from this file
 load_dotenv()
-
-# Get repo root from environment or use defaults
-REPO_ROOT = os.getenv('REPO_ROOT', str(Path(__file__).parent.parent))
-DEFAULT_CONFIG_PATH = os.path.join(REPO_ROOT, "data_loaders", "hamilton_viz_config.json")
+REPO_ROOT = os.getenv('REPO_ROOT') or str(Path(__file__).resolve().parents[2])
+sys.path.insert(0, REPO_ROOT)
+DEFAULT_CONFIG_PATH = os.path.join(REPO_ROOT, "dataflows/dag_viz", "hamilton_viz_config.json")
 
 
 def load_config_file(config_path: str, pipeline_key: Optional[str] = None) -> Dict[str, Any]:

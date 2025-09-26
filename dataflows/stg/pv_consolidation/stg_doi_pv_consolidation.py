@@ -19,10 +19,19 @@ import geopandas as gpd
 from shapely import wkb, wkt
 from dotenv import load_dotenv
 
+import sys as _sys
+# Prefer REPO_ROOT from .env if available; fall back to relative project root
+load_dotenv()
+_PROJECT_ROOT = os.getenv("REPO_ROOT") or os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+if _PROJECT_ROOT not in _sys.path:
+    _sys.path.insert(0, _PROJECT_ROOT)
+
 from utils.ducklake import _create_ducklake_connection
 from utils.hamilton_driver import build_driver
 
 from hamilton.htypes import Parallelizable, Collect
+
+from hamilton.execution import executors
 
 # TODO: Re-enable geoarrow when multi-geometry support is stable
 # Import arro3 for geometry-aware operations (following _doi_pv_helpers_storage.py pattern)
@@ -36,14 +45,10 @@ from hamilton.htypes import Parallelizable, Collect
 #     Arro3Table = Any
 
 from hamilton.function_modifiers import cache, config
-# Removed Parallelizable imports - using sequential only for dbt
 
-# Load environment variables
-load_dotenv()
+# Load environment variables (already loaded above for REPO_ROOT, safe to call again if needed)
 
 # DuckLake configuration for multi-client concurrent access
-# DUCKLAKE_CATALOG = "db/ducklake_catalog.sqlite"
-# DUCKLAKE_DATA_PATH = "db/ducklake_data"
 DUCKLAKE_CATALOG = os.getenv('DUCKLAKE_CATALOG', 'db/ducklake_catalog.sqlite')
 DUCKLAKE_DATA_PATH = os.getenv('DUCKLAKE_DATA_PATH', 'db/ducklake_data')
 DEFAULT_SCHEMA = "main"
@@ -136,6 +141,7 @@ def dataset_list(
         print(f"   - {ds}")
     return names
 
+@config.when(execution_mode="parallel")
 def dataset_names(
     available_datasets: List[str],
     dataset_list_override: Optional[List[str]] = None,
@@ -150,11 +156,13 @@ def dataset_names(
         yield name
 
 
+@config.when(execution_mode="parallel")
 def dataset_name(dataset_names: str) -> str:
     """Adapter node to reuse existing nodes that expect `dataset_name` input."""
     return dataset_names
 
 
+@config.when(execution_mode="parallel")
 def consolidated_standardized_table(
     standardized_dataset_table: Collect[gpd.GeoDataFrame],
 ) -> gpd.GeoDataFrame:
@@ -176,6 +184,7 @@ def consolidated_standardized_table(
     return combined
 
 
+@config.when(execution_mode="parallel")
 def export_consolidated_geoparquet(
     consolidated_standardized_table: gpd.GeoDataFrame,
     export_path: str,
@@ -195,13 +204,14 @@ def export_consolidated_geoparquet(
 
 @config.when(calculate_geometry_stats=True)
 def geometry_stats_calculated(
-    raw_table_from_catalog: Any,  # GeoArrow table or GeoPandas from raw_table_from_catalog
+    raw_table_from_catalog: gpd.GeoDataFrame,  # GeoArrow table or GeoDataFrame from raw_table_from_catalog
     use_ducklake: bool = True
 ) -> gpd.GeoDataFrame:
     """Calculate geometry statistics from WKB geometry using GeoPandas."""
 
     # Simplified: assume input is GeoPandas DataFrame (no geoarrow for now)
-    gdf = raw_table_from_catalog.copy()
+    print(f"   📊 Calculating geometry stats for {len(raw_table_from_catalog)} features...")
+    gdf = raw_table_from_catalog
     print(f"   ✅ Using GeoPandas input for geometry stats")
 
     # Project to appropriate CRS for accurate area/centroid calculations
@@ -331,21 +341,26 @@ def raw_table_from_catalog(
 
 
     # Use the correct conversion based on the detected geometry type
-    if geometry_type == "WKB":
+    if geometry_type == "WKT":
+        # WKT text data
+        df['geometry'] = df['geometry'].apply(lambda x: wkt.loads(x) if x and pd.notna(x) and x != '' else None)
+        # only keep one geometry column
+        if has_wkb:
+            df.drop(columns=['geometry_wkb'], inplace=True)
+        print(f"   🔄 Converted WKT text to geometry objects")
+
+    elif geometry_type == "WKB":
         # WKB binary data - use proper WKB conversion
         df['geometry'] = df['geometry'].apply(lambda x: wkb.loads(x) if x and pd.notna(x) else None)
         print(f"   🔄 Converted WKB binary to geometry objects")
-    elif geometry_type == "WKT":
-        # WKT text data
-        df['geometry'] = df['geometry'].apply(lambda x: wkt.loads(x) if x and pd.notna(x) and x != '' else None)
-        print(f"   🔄 Converted WKT text to geometry objects")
-    else:
-        print(f"   ⚠️  Unknown geometry type: {geometry_type}")
-        df['geometry'] = None
+    # else:
+    #     print(f"   ⚠️  Unknown geometry type: {geometry_type}")
+    #     df['geometry'] = None
 
     # Create GeoPandas DataFrame
     gdf = gpd.GeoDataFrame(df, geometry='geometry', crs=DEFAULT_CRS)
-    print(f"   �️  Created GeoPandas DataFrame with {len(gdf)} features")
+    #
+    print(f"   ✅ Created GeoPandas DataFrame with {len(gdf)} features")
 
     # TODO: Add GeoArrow conversion back later when multi-geometry support is stable
     # For now, just return GeoPandas DataFrame for Hamilton processing
@@ -355,8 +370,7 @@ def raw_table_from_catalog(
 def standardized_dataset_table(
     h3_spatial_index_assigned: gpd.GeoDataFrame,
     dataset_name: str,
-
-
+    grid_resolution: int = 8
 ) -> gpd.GeoDataFrame:
     """Apply final standardization with COALESCE field mapping and proper null handling."""
     gdf = h3_spatial_index_assigned.copy()
@@ -513,7 +527,14 @@ if __name__ == "__main__":
         standardized_parts = []
         for ds_name in ds_list:
             print(f"\n=== Dataset: {ds_name} ===")
-            result = dr.execute(
+            # Build a fresh Driver per dataset to mirror dbt behavior and avoid cross-iteration state
+            dr_ds = build_driver(
+                [this_module],
+                config={**cfg, "execution_mode": exec_mode},
+                enable_parallel=False,
+                local_executor=executors.SynchronousLocalTaskExecutor(),
+            )
+            result = dr_ds.execute(
                 ["standardized_dataset_table"],
                 inputs={
                     "dataset_name": ds_name,

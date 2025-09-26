@@ -46,7 +46,7 @@ models:
       +materialized: table
       +database: eo_pv_lakehouse
 
-      # PV staging models - need R2 S3 configuration
+      # # PV staging models - need R2 S3 configuration
       stg_pv_consolidated:
         +pre_hook:
           - "{% if target.name in ['dev', 'prod'] %}SET s3_access_key_id='{{ env_var('R2_ACCESS_KEY_ID') }}';{% endif %}"
@@ -112,6 +112,9 @@ models:
           - "SET s3_access_key_id='';"  # Blank access key for public bucket
           - "SET s3_secret_access_key='';"  # Blank secret key for public bucket
           - "SET s3_endpoint='overturemaps-us-west-2.s3.us-west-2.amazonaws.com';"
+          # required to avoid url encoding and 404 error from incorrectly encoding the s3 URI
+          # this is presumably from the dbt enclosing {{ var brackets }} being interpreted as "problematic characters": https://duckdb.org/docs/stable/core_extensions/httpfs/s3api#overview-of-s3-secret-parameters
+          - "SET s3_url_compatibility_mode=false;"
 
     # Prepared models - business logic transformations and data preparation
     prepared:
@@ -146,11 +149,7 @@ seeds:
 #   +store_failures: true
 #   +schema: test_failures
 
-# Variables for the project
 vars:
-  # Date range for data processing
-  start_date: '2015-01-01'
-  end_date: '2025-12-31'
 
   # Coordinate reference systems
   default_crs: 'EPSG:4326'  # WGS84
@@ -169,7 +168,7 @@ vars:
   buffer_distance_m: 150   # Buffer for spatial joins
 
   # Overture Maps configuration
-  overture_release: '2025-07-23.0'  # Latest Overture Maps release
+  overture_release: "{{ env_var('OVERTURE_RELEASE') }}"
 
   # DuckDB-specific settings
   use_native_geometry: true  # Use DuckDB spatial extension instead of WKT
@@ -181,20 +180,15 @@ vars:
 
 # DuckDB-specific configurations and environment setup
 on-run-start:
-  # Log target information for debugging
-  - "{{ log('🎯 dbt target: ' ~ target.name, info=true) }}"
   # required for python models
-  - "INSTALL arrow"
-  - "LOAD arrow"
+  # h3 now comes installed in Motherduck: https://motherduck.com/docs/about-motherduck/release-notes/#august-21-2025
+  - "{% if target.name == 'dev' %} INSTALL h3 FROM community; LOAD h3; {% endif %}"
+  - "INSTALL spatial; LOAD spatial"
+  - "INSTALL ducklake; LOAD ducklake"
+  - "INSTALL arrow FROM community; LOAD arrow"
   - "CALL register_geoarrow_extensions()"
-  - "INSTALL spatial"
-  - "LOAD spatial"
-  - "INSTALL ducklake"
-  - "LOAD ducklake"
-  - "INSTALL httpfs"
-  - "LOAD httpfs"
-  - "INSTALL h3 FROM community"
-  - "LOAD h3"
+  - "INSTALL httpfs; LOAD httpfs"
+  - "INSTALL cache_httpfs; LOAD cache_httpfs"
   - "USE eo_pv_lakehouse;"
   # Note: S3 settings moved to model-specific configurations
   # - R2 models use R2-specific S3 configuration

@@ -51,7 +51,7 @@ Analytics-Ready Tables
 ### **Step 1: Raw Data Ingestion**
 ```bash
 # Export all DOI PV datasets to R2
-python data_loaders/doi_pv/ingest_doi_pv_locations.py --cloud --sequential
+python dataflows/raw/doi_pv/ingest_doi_pv_locations.py --cloud --sequential
 
 # Features:
 # ✅ Smart change detection (skips unchanged files)
@@ -215,7 +215,7 @@ python setup_cloud_deployment.py
 python run_cloud_deployment_tests.py
 
 # Manual verification
-python data_loaders/doi_pv/ingest_doi_pv_locations.py --cloud --sequential
+python dataflows/raw/doi_pv/ingest_doi_pv_locations.py --cloud --sequential
 dbt run --target prod
 ```
 

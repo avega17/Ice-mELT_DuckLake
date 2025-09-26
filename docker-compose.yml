@@ -13,9 +13,9 @@ services:
       # Use postgres driver for DuckLake compatibility (not serverless)
       DRIVER: postgres
       # Branch from production data (using branch ID, not name)
-      PARENT_BRANCH_ID: br-cold-paper-a49fa6b9
+      BRANCH_ID: br-cold-paper-a49fa6b9
       # Auto-cleanup branches for clean dev workflow
-      DELETE_BRANCH: true
+      # DELETE_BRANCH: true
     # volumes:
       # Persistent Git branch functionality disabled - using ephemeral branches only
       # - ./.neon_local:/tmp/.neon_local
@@ -36,7 +36,7 @@ services:
   #   volumes:
   #     # Mount your project directories
   #     - ./db:/workspace/db
-  #     - ./data_loaders:/workspace/data_loaders
+  #     - ./ingest:/workspace/ingest
   #     - ./eo-pv-elt:/workspace/eo-pv-elt
   #     - .:/workspace
   #   working_dir: /workspace

@@ -16,7 +16,7 @@ Architecture:
 - Pipelines support both parallel and sequential execution modes
 
 Usage:
-    from data_loaders import run_doi_pipeline
+    from ingest import run_doi_pipeline
     
     # Execute DOI datasets pipeline
     result = run_doi_pipeline(
@@ -36,7 +36,7 @@ Integration with dbt:
     {{ config(pre_hook=run_hamilton_pipeline('doi_datasets')) }}
 
 Directory Structure:
-    data_loaders/
+    ingest/
     ├── __init__.py                    # This file
     ├── overture_maps_loader.py       # Overture Maps pipeline (planned)
     ├── solar_irradiance_loader.py    # Solar irradiance pipeline (planned)

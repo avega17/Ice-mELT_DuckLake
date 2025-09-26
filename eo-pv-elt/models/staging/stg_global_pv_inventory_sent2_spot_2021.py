@@ -41,18 +41,11 @@ def model(dbt, session):
 
     print("🚀 dbt Python staging: Processing Global PV Inventory Sent2 Spot 2021 with spatial processing...")
 
-    # Configure model
-    dbt.config(
-        materialized='table',
-        indexes=[
-            {'columns': ['dataset_name'], 'type': 'btree'},
-            {'columns': ['h3_index_12'], 'type': 'btree'},
-            {'columns': ['area_m2'], 'type': 'btree'}
-        ]
-    )
+    # Configure model; note DuckLake does not support indices
+    dbt.config(materialized='table')
 
     # Import Hamilton staging modules
-    from dataflows.stg.consolidation import stg_doi_pv_consolidation
+    from dataflows.stg.pv_consolidation import stg_doi_pv_consolidation
     from hamilton import driver
     from hamilton.execution import executors
 

@@ -6,8 +6,12 @@ Tests the proper Hamilton driver pattern.
 
 # Add repo root to path to import modules
 import sys
+from dotenv import load_dotenv
+import os
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+load_dotenv()
+MANIFEST_PATH = os.getenv('INGEST_METADATA', 'ingest/doi_manifest.json')
 
 def test_hamilton_driver_creation():
     """Test Hamilton driver creation with proper module separation."""
@@ -17,7 +21,7 @@ def test_hamilton_driver_creation():
     try:
         # Test imports
         print("🔍 Testing imports...")
-        from data_loaders.doi_pv.ingest_doi_pv_locations import create_hamilton_driver, run_doi_pv_pipeline
+        from ingest.doi_pv.ingest_doi_pv_locations import create_hamilton_driver, run_doi_pv_pipeline
         from dataflows.raw import doi_pv_locations
         print("   ✅ Imports successful")
         
@@ -26,7 +30,7 @@ def test_hamilton_driver_creation():
         # Test sequential mode
         config_sequential = {
             "database_path": ":memory:",
-            "manifest_path": "data_loaders/doi_manifest.json",
+            "manifest_path": MANIFEST_PATH,
             "max_mb": 10,
             "export_geoparquet": False,
             "force_download": False,
@@ -37,7 +41,7 @@ def test_hamilton_driver_creation():
         # Test parallel mode
         config_parallel = {
             "database_path": ":memory:",
-            "manifest_path": "data_loaders/doi_manifest.json",
+            "manifest_path": MANIFEST_PATH,
             "max_mb": 10,
             "export_geoparquet": False,
             "force_download": False,
@@ -104,11 +108,11 @@ def test_basic_functionality():
     print("=" * 50)
 
     try:
-        from data_loaders.doi_pv.ingest_doi_pv_locations import create_hamilton_driver
+        from ingest.doi_pv.ingest_doi_pv_locations import create_hamilton_driver
 
         config_sequential = {
             "database_path": ":memory:",
-            "manifest_path": "data_loaders/doi_manifest.json",
+            "manifest_path": MANIFEST_PATH,
             "cache_path": "./test_cache",
             "execution_mode": "sequential"
         }

@@ -1,6 +1,9 @@
 -- dbt SQL raw model for China Medium Resolution PV 2024 dataset.
 -- Converted from Python to SQL using DuckDB's native JSON functions and dbt variables.
 
+-- TODO: convert individual dataset raw models into single raw_doi_pv_dataset.sql model 
+-- that uses duckdb-dbt's table_function materialization: https://github.com/duckdb/dbt-duckdb?tab=readme-ov-file#table_function-materialization
+
 -- Set dataset name for this model
 {% set dataset_name = 'chn_med_res_pv_2024' %}
 {% set geometry_parse = 'ST_GeomFromWKB(geometry)' %}
@@ -20,7 +23,7 @@ WITH doi_manifest_raw AS (
     {% if target.name == 'prod' %}
         SELECT * FROM read_json_objects_auto('{{ env_var("DOI_MANIFEST_PROD", "s3://eo-pv-lakehouse/pv_metadata/doi_manifest.json") }}')
     {% else %}
-        SELECT * FROM read_json_objects_auto('{{ env_var("REPO_ROOT", ".") }}/data_loaders/doi_manifest.json')
+        SELECT * FROM read_json_objects_auto('{{ env_var("REPO_ROOT", ".") }}/ingest/doi_manifest.json')
     {% endif %}
 ),
 doi_manifest_expanded AS (
