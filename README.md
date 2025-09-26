@@ -55,7 +55,7 @@ This project implements a comprehensive data pipeline for processing and analyzi
 
 **Data Sources**
 - DOI datasets via [datahugger](https://github.com/J535D165/datahugger/tree/main)
-- [STAC assets](data_loaders/stac_manifest.json) for satellite imagery
+- [STAC assets](ingest/stac_manifest.json) for satellite imagery
 - [Overture Maps](https://overturemaps.org/blog/2025/overture-maps-foundation-making-open-data-the-winning-choice/) for admin boundaries, building footprints, land cover
 - [Google Solar API](https://developers.google.com/maps/documentation/solar/data-layers) and [NREL NSRDB](https://nsrdb.nrel.gov/about/what-is-the-nsrdb) for irradiance data
 
@@ -88,36 +88,29 @@ Our pipeline architecture leverages **Hamilton** for function-based DAG dataflow
 - **Built-in Caching**: Intelligent caching with automatic invalidation
 - **Parallel Execution**: Native support for parallel processing with dependency management
 
+<div align="center">
+<img src="figures/dataflows/stg_pv_consolidation_sequential_full_dag.png" alt="Staging PV Consolidation Hamilton DAG (sequential)" width="75%">
+<p><em>Figure: Hamilton DAG for the PV staging consolidation pipeline. Nodes depict individual transform functions progressing from raw source loads through geometry normalization, spatial metrics, H3 indexing, and output of the resulting staging tables.</em></p>
+</div>
+
 **Design Philosophy**: Following the "Big Data is Dead" approach, our Hamilton dataflows are optimized for **medium data** workloads that fit comfortably on modern single-node systems while providing sophisticated analysis capabilities without distributed computing complexity.
 
 *For detailed insights on modern data stack integration, see [docs/DAGs_and_Composable_Data.md](docs/DAGs_and_Composable_Data.md) and [docs/hamilton_best_practices.ipynb](docs/hamilton_best_practices.ipynb)*
 
 #### 🚀 Implemented Pipeline Features
 
-##### DOI PV Locations Dataflow (`dataflows/doi_pv_locations.py`)
+**DOI PV Datasets Processed:**
 
-**Core Capabilities:**
-- **Multi-source ingestion**: Supports DOI repositories (Zenodo, Figshare, ScienceBase) and GitHub
-- **Intelligent file filtering**: Regex-based patterns from `doi_manifest.json` for precise file selection
-- **Parallel/Sequential execution**: Choose optimal mode based on system resources and dataset size
-- **Hybrid spatial processing**: GeoArrow for efficient inter-node data exchange, WKB for DuckDB storage
-- **Comprehensive caching**: Hamilton's built-in caching with dependency-aware invalidation
-- **Dual output formats**: DuckDB tables for analysis + GeoParquet files for interoperability
+<p align="center">
+  <img src="figures/doi_pv_datasets_processed.png" alt="Summary table of processed DOI photovoltaic datasets" width="85%">
+</p>
+<p align="center"><em>Table: Datasets processed into geoparquet files used as raw pipeline inputs are highlighted in bold.</em></p>
 
-**Processing Pipeline:**
+**Raw DOI PV Processing Pipeline:**
 ```
 DOI Metadata → Parallel Download → File Filtering → GeoPandas Loading →
 GeoArrow-RS Conversion → DuckDB Storage + GeoParquet Export (native I/O)
 ```
-
-**Current Datasets Processed:**
-- doi_uk_crowdsourced_pv_2020: 265,406 records
-- doi_chn_med_res_pv_2024: 1,852 records
-- doi_usa_cali_usgs_pv_2016: 19,433 records
-- doi_ind_pv_solar_farms_2022: 1,363 records
-- doi_global_pv_inventory_sent2_spot_2021: 36,882 records
-- doi_global_harmonized_large_solar_farms_2020: 35,272 records
-- *Total: ~380K deduplicated PV installations across 6 active datasets*
 
 ## 📊 Current State
 
@@ -202,14 +195,22 @@ pip install -r requirements.txt
 ```
 
 ### Project Structure
-<!-- TODO: Add data layer subdirectories in dataflows, data_loaders to reflect current proj structure -->
+<!-- TODO: Add data layer subdirectories in dataflows to reflect current proj structure -->
 ```
 ├── dataflows/                   # Hamilton dataflow modules
-│   ├── doi_pv_locations.py     # DOI PV datasets ingestion
+│   ├── hamilton_modules/        # Reusable Hamilton components
+│   ├── raw/                     # Raw data loading pipelines
+│   │   ├── doi_pv_locations.py    # DOI PV locations pipeline
+│   │   └── ...                    # more pipelines for ingesting raw data
+│   ├── stg/                     # Staging data processing pipelines
+│   │   ├── consolidation/        # Consolidation and standardization of raw data
+│   │   └── overture/             # spatial context from Overture Maps themes
+│   │   └── spatial_indexing/    # H3 and S2 spatial indexing for efficient aggregation and spatail joins
 │   ├── _doi_pv_helpers_storage.py  # Storage helper functions
 │   └── stg_doi_pv_consolidation.py  # Testing staging consolidation transforms for dbt python models
-├── data_loaders/                
-│   ├── hamilton_modules/        # Reusable Hamilton components
+├── db/                          
+│   └── geoparquet/             # Exported GeoParquet files
+├── ingest/                
 │   ├── utils/                   # Arrow operations, validation
 │   ├── doi_manifest.json       # Dataset metadata & file filters
 │   └── visualize_hamilton_dag.py  
@@ -220,8 +221,6 @@ pip install -r requirements.txt
 │       ├── staging/             # Individual dataset processing with Hamilton DAGs
 │       ├── prepared/            # Consolidated data with spatial deduplication
 │       └── curated/             # Final analytical datasets
-├── db/                          
-│   └── geoparquet/             # Exported GeoParquet files
 ├── docs/                        
 │   ├── modern_data_stack.md    # Architecture philosophy
 │   ├── DAGs_and_Composable_Data.md  # Hamilton integration
