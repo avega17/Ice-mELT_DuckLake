@@ -1,0 +1,87 @@
+%% This is a Mermaid diagram. It's "diagram as code".
+graph TD
+    %% Define User & Tooling
+    User(Developer / Researcher)
+
+    %% Define External Data Sources
+    subgraph EO_Imagery ["EO Imagery"]
+        STAC_Catalog[("STAC Catalogs<br/>(EO DATA)")]
+        HF_Datasets[("HuggingFace Hub<br/>(CV Datasets)")]
+    end
+
+    subgraph Geo_Context ["Geospatial Context"]
+        Overture_Maps[("Overture Maps<br/>(Admin, Land, Buildings)")]
+    end
+
+    %% Define Central Metadata Store (The "Brain")
+    subgraph "Persistent Metadata"
+        DuckLake_Catalog[("DuckLake (PostgreSQL)<br/>Metadata Catalog")]
+    end
+
+    %% --- Re-ordered layout for clarity ---
+    
+    %% Define Local-First Environment
+    subgraph "Local Env (Homelab)"
+        Dask_Scheduler(Dask Scheduler)
+        Local_Workers(Local Dask Workers)
+        DuckDB_Local[("DuckDB<br/>Local Query Engine")]
+        MinIO[("MinIO (Local S3)<br/>Data: Zarr, GeoParquet")]
+    end
+
+    %% Define Transformation tool in the middle
+    subgraph "Transformation"
+        dbt_CLI(dbt-core<br/>ELT/Transform)
+    end
+
+    %% Define Cloud Environment
+    subgraph "Cloud-Scaling (Coiled/EC2)"
+        Coiled(Coiled.io<br/>Dask Cluster Manager)
+        Cloud_Workers(Cloud Dask Workers)
+        MotherDuck[("MotherDuck<br/>Cloud Query Engine")]
+        R2_S3[("Cloudflare R2 / AWS S3<br/>Data: Zarr, GeoParquet")]
+    end
+
+    %% --- Data Ingestion Workflow (Dask) ---
+    EO_Imagery -- "Fetch External Data" --> Local_Workers
+    EO_Imagery -- "Fetch External Data" --> Cloud_Workers
+    Cloud_Workers -- "10a. Write Ingested Data (to Local)" --> MinIO
+
+    %% --- Data Transformation Workflow (dbt) ---
+    User -- "Run ELT" --> dbt_CLI
+    dbt_CLI -- "Targets Local" --> DuckDB_Local
+    dbt_CLI -- "Targets Cloud" --> MotherDuck
+    
+    %% --- Analytics Workflow (Local) ---
+    User -- "1a: Run Local Dask Job" --> Dask_Scheduler
+    Dask_Scheduler -- "2: Manage Jobs" --> Local_Workers
+    User -- "1b: Run Local SQL Query" --> DuckDB_Local
+    
+    %% Local workers get metadata via DuckDB
+    Local_Workers -- "3: Get Metadata" --> DuckDB_Local
+    
+    %% DuckDB fetches context and R/W metadata
+    Overture_Maps -- "4: Fetch Context Data" --> DuckDB_Local
+    DuckDB_Local -- "5: R/W Metadata" --> DuckLake_Catalog
+    
+    %% Local data access
+    Local_Workers -- "6a: R/W Data" --> MinIO
+    DuckDB_Local -- "6b: R/W Data" --> MinIO
+
+    %% --- Analytics Workflow (Cloud-Scaling) ---
+    User -- "1c: Scale Dask Job" --> Coiled
+    Coiled -- "8: Spawns" --> Cloud_Workers
+    User -- "1d: Run Cloud SQL Query" --> MotherDuck
+
+    %% Cloud workers get metadata via MotherDuck
+    Cloud_Workers -- "9: Get Metadata" --> MotherDuck
+
+    %% MotherDuck fetches context and R/W metadata
+    Overture_Maps -- "10: Fetch Context Data" --> MotherDuck
+    MotherDuck -- "11: R/W Metadata" --> DuckLake_Catalog
+
+    %% Cloud data access
+    Cloud_Workers -- "12a: R/W Data" --> R2_S3
+    MotherDuck -- "12b: R/W Data" --> R2_S3
+
+    %% --- Data Sync ---
+    MinIO -- "Sync local tabular data " --> R2_S3
