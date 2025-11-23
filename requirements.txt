@@ -40,6 +40,7 @@ ipywidgets
 jupysql>=0.11
 jupyterlab
 jupytext
+
 lonboard
 matplotlib
 maxar-platform
@@ -69,6 +70,7 @@ python-dotenv
 pyyaml
 # rasterio
 # rastervision
+reverse-geocoder
 rich
 # rioxarray
 rtree

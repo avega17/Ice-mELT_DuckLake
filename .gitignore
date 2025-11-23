@@ -70,6 +70,8 @@ datasets/temp/
 *.sqlite
 *.sqlite3
 
+db/.*_cache/
+
 # Large geospatial files
 *.shp
 *.shx
