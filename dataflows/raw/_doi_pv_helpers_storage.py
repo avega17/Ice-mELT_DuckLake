@@ -15,6 +15,14 @@ import geopandas as gpd
 import pyarrow as pa
 import duckdb
 
+# Add repo root to path to import dataflows
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+# import ducklake connection helper from utils/ducklake.py
+from utils.ducklake import _create_ducklake_connection
+
+
 
 def _apply_file_filters(files: List[Path], file_filters: Dict[str, Any]) -> List[Path]:
     """
@@ -506,38 +514,24 @@ def _storage_result(
 
     # Handle None database_path by using environment variable
     if database_path is None:
-        database_path = os.getenv('DUCKLAKE_CONNECTION_STRING',
-                                'ducklake:postgres:host=localhost port=5432 dbname=neondb user=neon password=npg')
+        database_path = os.getenv('DUCKLAKE_ATTACH_PROD',
+                                'ERROR:DUCKLAKE_CONNECTION_STRING_PROD not set')
 
     # Connect to DuckDB or DuckLake
     is_ducklake = database_path.startswith('ducklake:')
 
     if is_ducklake:
-        # DuckLake connection
-        conn = duckdb.connect()
-        # Install extensions first
-        conn.execute("INSTALL spatial; LOAD spatial;")
-        conn.execute("INSTALL ducklake; LOAD ducklake;")
+        # use helper for DuckLake connection; TODO: support target selection
+        conn = _create_ducklake_connection()
 
-        # Set up DuckLake data path
-        import os
-        from pathlib import Path
-        repo_root = os.getenv('REPO_ROOT', '.')
-        data_path = Path(repo_root) / "db" / "ducklake_data"
-        data_path.mkdir(parents=True, exist_ok=True)
-
-        # Attach DuckLake catalog with data path
-        attach_sql = f"ATTACH '{database_path}' AS eo_pv_lakehouse (DATA_PATH '{data_path}/')"
-        conn.execute(attach_sql)
-        conn.execute("USE eo_pv_lakehouse")
-        print(f"   🔗 Connected to DuckLake: {database_path}")
-        print(f"   📁 Data path: {data_path}")
+        # TODO: update when we have implemented Ducklake 0.3's support for WKB and geometry types
         print(f"   ⚠️  Using WKT geometry storage (DuckLake spatial type limitation)")
     else:
         # Regular DuckDB connection
         conn = duckdb.connect(database_path)
-        # Install spatial extension
+        # Install spatial and httpfs extension
         conn.execute("INSTALL spatial; LOAD spatial;")
+        conn.execute("INSTALL httpfs; LOAD httpfs;")
         print(f"   🔗 Connected to DuckDB: {database_path}")
 
     results = {

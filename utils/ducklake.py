@@ -13,7 +13,7 @@ import duckdb
 
 def _create_ducklake_connection(
     *,
-    target: str | None = None,
+    target: str | None = "prod",
     attach_alias: str = "eo_pv_lakehouse",
 ) -> duckdb.DuckDBPyConnection:
     """
@@ -32,7 +32,7 @@ def _create_ducklake_connection(
     conn.execute("INSTALL spatial; LOAD spatial;")
     conn.execute("INSTALL h3 FROM community; LOAD h3;")
     conn.execute("INSTALL httpfs; LOAD httpfs;")
-    conn.execute("INSTALL cache_httpfs; LOAD cache_httpfs;")
+    # conn.execute("INSTALL cache_httpfs; LOAD cache_httpfs;")
 
     # Configure S3/R2 if credentials exist
     if (ak := os.getenv("R2_ACCESS_KEY_ID")) and (sk := os.getenv("R2_SECRET_KEY")):

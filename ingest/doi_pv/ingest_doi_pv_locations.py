@@ -24,13 +24,14 @@ from dotenv import load_dotenv
 
 from dataflows.raw import doi_pv_locations
 
-# Load environment variables from .env file
-load_dotenv()
-
 # Get repo root and manifest path from environment or use defaults
 # Use relative paths as they work better than absolute paths in this environment
 REPO_ROOT = str(Path(__file__).parent.parent.parent)
-INGEST_METADATA = str(Path(__file__).parent.parent / "doi_manifest.json")
+
+# Load environment variables from .env file
+load_dotenv(Path(REPO_ROOT) / ".env")
+INGEST_METADATA = os.getenv('INGEST_METADATA', str(Path(REPO_ROOT) / "ingest" / "doi_manifest.json"))
+# print(f"Found Connection String: {os.getenv('DUCKLAKE_CONNECTION_STRING_PROD')}")
 
 
 def create_hamilton_driver(
@@ -121,8 +122,7 @@ def run_doi_pv_pipeline(
     if database_path is None:
         if use_ducklake:
             # Use DuckLake PostgreSQL catalog (unified dev/prod)
-            database_path = os.getenv('DUCKLAKE_CONNECTION_STRING',
-                                    'ducklake:postgres:host=localhost port=5432 dbname=neondb user=neon password=npg')
+            database_path = os.getenv('DUCKLAKE_ATTACH_PROD')
         else:
             # Use regular DuckDB database
             database_path = os.path.join(REPO_ROOT, "db", "eo_pv_data.duckdb")
@@ -165,10 +165,11 @@ def run_doi_pv_pipeline(
 
 def main():
     """Main CLI function."""
+
     import argparse
     
     parser = argparse.ArgumentParser(description="DOI PV Locations Ingestion Pipeline")
-    parser.add_argument("--database", default=None, help=f"DuckDB database path (default: {os.path.join(REPO_ROOT, 'db', 'eo_pv_data.duckdb')})")
+    parser.add_argument("--database", default=None, help=f"DuckDB database path (default: {os.getenv('DUCKLAKE_ATTACH_PROD', os.path.join(REPO_ROOT, 'db', 'eo_pv_data.duckdb'))})")
     parser.add_argument("--manifest", default=None, help=f"DOI manifest file (default: {INGEST_METADATA})")
     parser.add_argument("--max-mb", type=int, default=300, help="Max download size in MB")
     parser.add_argument("--no-geoparquet", action="store_true", help="Skip GeoParquet export")
@@ -182,6 +183,9 @@ def main():
     parser.add_argument("--no-ducklake", action="store_true", help="Use regular DuckDB instead of DuckLake catalog")
     
     args = parser.parse_args()
+
+    print(f"Using Repo Root: {REPO_ROOT}")
+    print(f"Using DOI Manifest: {INGEST_METADATA}")
     
     # Configure cloud deployment
     if args.cloud:
@@ -219,7 +223,8 @@ def main():
         
         if result['tables_created']:
             table_names = [table_info['table_name'] for table_info in result['tables_created']]
-            print(f"   🗂️  Tables: \n - {'\n- '.join(table_names)}")
+            table_list = '\n- '.join(table_names)
+            print(f"   🗂️  Tables: \n - {table_list}")
         
     except Exception as e:
         print(f"❌ Pipeline failed: {e}")

@@ -122,6 +122,9 @@ def dataset_download_path__parallel(
     
     # Create temp directory for this dataset
     download_dir = tempfile.mkdtemp(prefix=f"doi_{dataset_names}_")
+    # prefer dataset-specific max_mb if provided
+    if "max_mb" in metadata:
+        max_mb = metadata["max_mb"]
     
     try:
         if metadata["repo"] == "github":
@@ -153,7 +156,38 @@ def dataset_download_path__parallel(
                     download_dir
                 ], check=True, capture_output=True)
                 print(f"   ✅ Cloned repository to {download_dir}")
-        else:
+        
+        elif metadata["repo"] == "direct_download":
+            # Direct download link
+            import urllib.request
+            from pathlib import Path
+
+            doi_url = metadata["doi"]
+            print(f"   📥 Downloading direct link: {doi_url}")
+            filename = Path(doi_url).name
+            file_path = Path(download_dir) / filename
+            urllib.request.urlretrieve(doi_url, file_path)
+            print(f"   ✅ Downloaded {filename} to {download_dir}")
+
+            # handle compression if specified
+            if metadata["compression"] == "zip":
+                import zipfile
+                with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                    zip_ref.extractall(download_dir)
+                print(f"   ✅ Extracted zip file in {download_dir}")
+                # Optionally remove zip file after extraction
+                os.remove(file_path)
+            elif metadata["compression"] == "tar.gz":
+                import tarfile
+                with tarfile.open(file_path, 'r:gz') as tar_ref:
+                    tar_ref.extractall(download_dir)
+                print(f"   ✅ Extracted tar.gz file in {download_dir}")
+                # Optionally remove tar.gz file after extraction
+                os.remove(file_path)
+            elif metadata["compression"] is not None:
+                raise ValueError(f"Unsupported compression type: {metadata['compression']}")
+        
+        elif metadata["repo"] in ("zenodo", "figshare", "osf", "huggingface"):
             # Use datahugger for DOI downloads
             datahugger.get(
                 metadata["doi"],
@@ -337,6 +371,9 @@ def collected_arrow_tables__sequential(
         # Download dataset
         metadata = doi_metadata[dataset_name]
         download_dir = tempfile.mkdtemp(prefix=f"doi_{dataset_name}_")
+        # prefer dataset-specific max_mb if provided
+        if "max_mb" in metadata:
+            max_mb = metadata["max_mb"]
 
         try:
             if metadata["repo"] == "github":
@@ -345,11 +382,14 @@ def collected_arrow_tables__sequential(
 
                 if "raw.githubusercontent.com" in doi_url:
                     # Raw GitHub file - download directly
+                    import urllib.request
+                    from pathlib import Path
+
                     print(f"   📥 Downloading raw GitHub file: {doi_url}")
                     filename = Path(doi_url).name
                     if not filename.endswith(('.geojson', '.json', '.shp', '.gpkg', '.kml', '.gml')):
                         # If no extension, try to infer from URL or default to .geojson
-                        filename = f"{dataset_name}.geojson"
+                        filename = f"{dataset_names}.geojson"
 
                     file_path = Path(download_dir) / filename
                     urllib.request.urlretrieve(doi_url, file_path)
@@ -357,21 +397,47 @@ def collected_arrow_tables__sequential(
 
                 else:
                     # GitHub repository - clone it
+                    import subprocess
                     repo_url = doi_url.replace("https://github.com/", "")
-
-                    # Use subprocess with proper cleanup
-                    process = subprocess.run([
+                    subprocess.run([
                         "git", "clone", "--depth", "1",
                         f"https://github.com/{repo_url}.git",
                         download_dir
                     ], check=True, capture_output=True)
-
-                    # Ensure process is properly cleaned up
-                    if hasattr(process, 'terminate'):
-                        process.terminate()
-
                     print(f"   ✅ Cloned repository to {download_dir}")
-            else:
+            
+            elif metadata["repo"] == "direct_download":
+                # Direct download link
+                import urllib.request
+                from pathlib import Path
+
+                doi_url = metadata["doi"]
+                print(f"   📥 Downloading direct link: {doi_url}")
+                filename = Path(doi_url).name
+                file_path = Path(download_dir) / filename
+                urllib.request.urlretrieve(doi_url, file_path)
+                print(f"   ✅ Downloaded {filename} to {download_dir}")
+
+                # handle compression if specified
+                if metadata["compression"] == "zip":
+                    import zipfile
+                    with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                        zip_ref.extractall(download_dir)
+                    print(f"   ✅ Extracted zip file in {download_dir}")
+                    # Optionally remove zip file after extraction
+                    os.remove(file_path)
+                elif metadata["compression"] == "tar.gz":
+                    import tarfile
+                    with tarfile.open(file_path, 'r:gz') as tar_ref:
+                        tar_ref.extractall(download_dir)
+                    print(f"   ✅ Extracted tar.gz file in {download_dir}")
+                    # Optionally remove tar.gz file after extraction
+                    os.remove(file_path)
+                elif metadata["compression"] is not None:
+                    raise ValueError(f"Unsupported compression type: {metadata['compression']}")
+            
+            elif metadata["repo"] in ("zenodo", "figshare", "osf", "huggingface"):
+                # Use datahugger for DOI downloads
                 datahugger.get(
                     metadata["doi"],
                     output_folder=download_dir,
