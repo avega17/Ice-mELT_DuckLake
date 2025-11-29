@@ -194,7 +194,7 @@ def _duckdb_table_from_geoarrow(
         Number of rows inserted
     """
     # Drop existing table
-    conn.execute(f"DROP VIEW IF EXISTS {table_name}")
+    conn.execute(f"DROP TABLE IF EXISTS {table_name}")
 
     try:
         # Convert using geoarrow-rs which preserves geometry information

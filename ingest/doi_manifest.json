@@ -116,14 +116,18 @@
         "repo": "zenodo",
         "compression": "zip", 
         "label_fmt": "gpkg",
-        "has_imgs": true,
+        "manual_uncompress": true,
+        "compressed_archives": [
+            "GMSEUS_v1_0.zip"
+        ],
         "max_mb": 3500,
+        "has_imgs": true,
         "paper_doi": "10.1038/s41597-025-05862-4",
         "paper_title": "GM-SEUS: A harmonized dataset of ground-mounted solar energy in the US with enhanced metadata",
         "data_records_descr": "GM-SEUS v1.0 includes over 15,000 commercial- and utility-scale ground-mounted solar arrays and 2.92 million unique solar panel-rows. Includes value-added attributes: installation year, azimuth, mount technology, panel-row area, and installed capacity.",
-        "label_count": 2920000,
+        "label_count": 15017,
         "file_filters": {
-            "include_patterns": [".*GMSEUS_Arrays_Final.gpkg$"],
+            "include_patterns": ["^GMSEUS_Arrays_Final\\.gpkg$"],
             "exclude_patterns": [
                 "GMSEUS_Panels_Final", 
                 "GMSEUS_NAIP", 

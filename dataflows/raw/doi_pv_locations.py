@@ -233,6 +233,18 @@ def processed_geodataframe__parallel(
     geo_extensions = {'.shp', '.geojson', '.gpkg', '.kml', '.gml', '.json'}
     all_geo_files = []
 
+    # handle datasets that require uncompressing the fetched dataset
+    if metadata["manual_uncompress"] and "compressed_archives" in metadata:
+        import zipfile
+        for archive_name in metadata["compressed_archives"]:
+            archive_path = download_path / archive_name
+            if archive_path.exists() and zipfile.is_zipfile(archive_path):
+                with zipfile.ZipFile(archive_path, 'r') as zip_ref:
+                    zip_ref.extractall(download_path)
+                print(f"   ✅ Manually extracted {archive_name} in {download_path}")
+            else:
+                print(f"   ⚠️  Archive {archive_name} not found or not a zip file for manual extraction")
+
     for ext in geo_extensions:
         all_geo_files.extend(download_path.rglob(f"*{ext}"))
 
@@ -448,6 +460,18 @@ def collected_arrow_tables__sequential(
             download_path = Path(download_dir)
             geo_extensions = {'.shp', '.geojson', '.gpkg', '.kml', '.gml', '.json'}
             all_geo_files = []
+
+            # handle datasets that require uncompressing the fetched dataset
+            if metadata["manual_uncompress"] and "compressed_archives" in metadata:
+                import zipfile
+                for archive_name in metadata["compressed_archives"]:
+                    archive_path = download_path / archive_name
+                    if archive_path.exists() and zipfile.is_zipfile(archive_path):
+                        with zipfile.ZipFile(archive_path, 'r') as zip_ref:
+                            zip_ref.extractall(download_path)
+                        print(f"   ✅ Manually extracted {archive_name} in {download_path}")
+                    else:
+                        print(f"   ⚠️  Archive {archive_name} not found or not a zip file for manual extraction")
 
             for ext in geo_extensions:
                 all_geo_files.extend(download_path.rglob(f"*{ext}"))
